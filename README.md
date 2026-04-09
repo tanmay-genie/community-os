@@ -459,14 +459,6 @@ source venv/bin/activate
 pytest tests/test_t2t.py -v
 ```
 
----
-
-## Project Authors
-
-- **Tanmay Singh** — AI & Robotics Engineer (Backend, T2T Protocol, ARIA Agent)
-- **Bilal** — CEO / Founder, GENIE AI
-- **Syed** — Product
-- **Arfa** — AI Team Lead (3D Avatar UI/UX)
 
 ---
 
