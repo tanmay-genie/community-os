@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T2T Backend — Work Breakdown & Roadmap</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #08090e;
+    --surface: #0f1117;
+    --card: #13151d;
+    --border: #1f2333;
+    --accent: #4ade80;
+    --accent2: #fb923c;
+    --accent3: #60a5fa;
+    --text: #dde1f0;
+    --muted: #555d7a;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(74,222,128,0.04) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* HEADER */
+  .hdr { margin-bottom: 48px; }
+  .hdr-tag {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .hdr h1 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(40px, 8vw, 72px);
+    letter-spacing: 2px;
+    color: #fff;
+    line-height: 1;
+    margin-bottom: 14px;
+  }
+  .hdr h1 span { color: var(--accent2); }
+  .hdr-sub {
+    font-size: 14px;
+    color: var(--muted);
+    font-family: 'IBM Plex Mono', monospace;
+    line-height: 1.7;
+    max-width: 680px;
+  }
+
+  /* LEGEND */
+  .legend {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 40px;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    color: var(--muted);
+  }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* HIGHLIGHT BOX */
+  .highlight-box {
+    background: rgba(251,146,60,0.06);
+    border: 1px solid rgba(251,146,60,0.25);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin-bottom: 40px;
+  }
+  .highlight-box h3 {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .highlight-box p {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+    margin-bottom: 12px;
+  }
+  .pipeline-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,0,0,0.3);
+    padding: 10px 14px;
+    border-radius: 4px;
+    line-height: 2;
+    letter-spacing: 0.5px;
+  }
+
+  /* SECTION */
+  .section { margin-bottom: 48px; }
+  .section-title {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-bottom: 20px;
+  }
+  .section-title.done  { color: var(--accent);  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2); }
+  .section-title.yours { color: var(--accent2); background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); }
+  .section-title.future{ color: var(--accent3); background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); }
+
+  /* PHASE */
+  .phase {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    transition: border-color 0.3s;
+  }
+  .phase:hover { border-color: #2a3050; }
+  .phase-header {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 24px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .phase-num {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 28px;
+    line-height: 1;
+    min-width: 40px;
+  }
+  .phase-num.green  { color: var(--accent); }
+  .phase-num.orange { color: var(--accent2); }
+  .phase-num.blue   { color: var(--accent3); }
+  .phase-info { flex: 1; }
+  .phase-title    { font-size: 16px; font-weight: 700; color: #fff; margin-bottom: 3px; }
+  .phase-subtitle { font-size: 12px; color: var(--muted); font-family: 'IBM Plex Mono', monospace; }
+  .phase-badge {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+  .badge-done   { color: var(--accent);  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2); }
+  .badge-yours  { color: var(--accent2); background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); }
+  .badge-future { color: var(--accent3); background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); }
+  .phase-body { padding: 0 24px 20px; display: none; }
+  .phase-body.open         { display: block; }
+  .phase-body.always-open  { display: block; }
+
+  /* TASKS */
+  .task-list { display: flex; flex-direction: column; gap: 10px; }
+  .task {
+    display: flex;
+    gap: 14px;
+    padding: 14px 16px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    align-items: flex-start;
+    transition: all 0.2s;
+  }
+  .task:hover { border-color: #2a3050; }
+  .task-icon   { font-size: 18px; flex-shrink: 0; margin-top: 1px; }
+  .task-content { flex: 1; }
+  .task-name   { font-size: 14px; font-weight: 700; color: #fff; margin-bottom: 4px; }
+  .task-desc   { font-size: 12px; color: var(--muted); line-height: 1.6; margin-bottom: 8px; }
+  .task-files  { display: flex; flex-wrap: wrap; gap: 6px; }
+  .file-chip {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    color: var(--accent3);
+    background: rgba(96,165,250,0.06);
+    border: 1px solid rgba(96,165,250,0.15);
+  }
+
+  /* START ARROW */
+  .start-arrow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 28px 0;
+  }
+  .start-arrow-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--accent2), transparent);
+  }
+  .start-arrow-text {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent2);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* DAY PLAN */
+  .day-plan {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .day-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .day-card-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 20px;
+    color: var(--accent2);
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+  }
+  .day-card ul { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .day-card li {
+    font-size: 12px;
+    color: var(--muted);
+    padding-left: 14px;
+    position: relative;
+    line-height: 1.4;
+  }
+  .day-card li::before { content: '→'; position: absolute; left: 0; color: var(--accent2); font-size: 10px; }
+
+  /* RESPONSIBILITY TABLE */
+  .resp-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 13px;
+  }
+  .resp-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+  }
+  .resp-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+    line-height: 1.5;
+  }
+  .resp-table tr:last-child td { border-bottom: none; }
+  .resp-table td:first-child { color: #fff; font-weight: 600; }
+  .resp-table td:nth-child(2) { color: var(--muted); font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+  .pill {
+    display: inline-block;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    padding: 2px 8px;
+    border-radius: 3px;
+    letter-spacing: 1px;
+  }
+  .pill-green  { color: var(--accent);  background: rgba(74,222,128,0.08); border: 1px solid rgba(74,222,128,0.2); }
+  .pill-orange { color: var(--accent2); background: rgba(251,146,60,0.08); border: 1px solid rgba(251,146,60,0.2); }
+  .pill-blue   { color: var(--accent3); background: rgba(96,165,250,0.08); border: 1px solid rgba(96,165,250,0.2); }
+
+  .toggle-icon { font-size: 12px; color: var(--muted); transition: transform 0.3s; flex-shrink: 0; }
+  .toggle-icon.open { transform: rotate(180deg); }
+
+  @media (max-width: 600px) {
+    .phase-badge { display: none; }
+    .day-plan { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-tag">GENIE AI — T2T Protocol · Backend Implementation</div>
+    <h1>WHAT WE<br><span>NEED TO BUILD</span></h1>
+    <p class="hdr-sub">
+      This document outlines the complete backend work breakdown for the Twin-to-Twin (T2T) Communication Protocol.<br>
+      The 3D Twin avatars are handled by a separate team. Our scope is the backend coordination engine that powers all twin communication.
+    </p>
+  </div>
+
+  <!-- Legend -->
+  <div class="legend">
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent)"></div>
+      Already Being Built (Twin Avatar Team)
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent2)"></div>
+      Our Responsibility (Backend Team)
+    </div>
+    <div class="legend-item">
+      <div class="legend-dot" style="background:var(--accent3)"></div>
+      Phase 2 — Not Now
+    </div>
+  </div>
+
+  <!-- Golden Rule -->
+  <div class="highlight-box">
+    <h3>⚡ The One Rule — No Bypass Allowed</h3>
+    <p>Every single twin action — regardless of type — must pass through this exact pipeline. There is no shortcut, no direct twin-to-twin call, no exception.</p>
+    <div class="pipeline-text">
+      Human → Personal Twin → SID Service → Policy Engine → Agent Router<br>
+      → Target Twin → Policy Re-Validation → Orchestration Layer<br>
+      → Execution Engine → Audit Log → Notification Service
+    </div>
+  </div>
+
+  <!-- Responsibility Split -->
+  <div class="section">
+    <div class="section-title done">Team Responsibility Split</div>
+    <table class="resp-table">
+      <thead>
+        <tr>
+          <th>Pipeline Step</th>
+          <th>Description</th>
+          <th>Owner</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Human User</td>
+          <td>Voice / hotkey / UI action trigger</td>
+          <td><span class="pill pill-green">TWIN TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Personal Twin (3D Avatar)</td>
+          <td>3D representation, user interaction layer</td>
+          <td><span class="pill pill-green">TWIN TEAM</span></td>
+        </tr>
+        <tr>
+          <td>SID Service</td>
+          <td>Identity + device + clearance verification</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Policy Engine (Gate 1 + Gate 2)</td>
+          <td>RBAC + ABAC permission decisions</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Agent Router / T2T Message Bus</td>
+          <td>Message routing, dedup, thread ordering</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Target Twin (receive + ACK)</td>
+          <td>Message delivery to recipient twin</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Orchestration Layer</td>
+          <td>Intent → workflow steps → execution</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Execution Engine + Adapters</td>
+          <td>Tool integrations: Jira, CRM, Docs, Calendar</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Memory Layer Update</td>
+          <td>User / Org / Decision memory after execution</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Audit Log Service</td>
+          <td>Immutable event ledger, replayable</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Notification Service</td>
+          <td>Alerts, escalation notices, SLA breach</td>
+          <td><span class="pill pill-orange">BACKEND TEAM</span></td>
+        </tr>
+        <tr>
+          <td>Message Signing (Ed25519)</td>
+          <td>Cryptographic non-repudiation</td>
+          <td><span class="pill pill-blue">PHASE 2</span></td>
+        </tr>
+        <tr>
+          <td>Cross-Org Contracts</td>
+          <td>Multi-tenant trust + redaction profiles</td>
+          <td><span class="pill pill-blue">PHASE 2</span></td>
+        </tr>
+        <tr>
+          <td>Identity Graph (Neo4j)</td>
+          <td>Full relationship graph for permissions</td>
+          <td><span class="pill pill-blue">PHASE 2</span></td>
+        </tr>
+        <tr>
+          <td>WebSocket Push</td>
+          <td>Real-time message delivery upgrade</td>
+          <td><span class="pill pill-blue">PHASE 2</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- START HERE -->
+  <div class="start-arrow">
+    <div class="start-arrow-text">▶ Start Here — Build in This Order</div>
+    <div class="start-arrow-line"></div>
+  </div>
+
+  <!-- SECTION: Our Work -->
+  <div class="section">
+    <div class="section-title yours">🔥 Backend Team — Full Work Breakdown</div>
+
+    <!-- Module 1 -->
+    <div class="phase" style="border-color: rgba(251,146,60,0.3);">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">1</div>
+        <div class="phase-info">
+          <div class="phase-title">SID Service — Identity & Authentication</div>
+          <div class="phase-subtitle">Twin identity verification · API key auth · Clearance check · Revocation</div>
+        </div>
+        <div class="phase-badge badge-yours">START HERE</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">🗄️</div>
+            <div class="task-content">
+              <div class="task-name">Twin Registration Table</div>
+              <div class="task-desc">Create the database table that stores all registered twins. Each twin must have: twin_id, org_id, hashed API key, role, clearance level, and status (active / suspended / revoked).</div>
+              <div class="task-files">
+                <span class="file-chip">models.py</span>
+                <span class="file-chip">db.py</span>
+              </div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔑</div>
+            <div class="task-content">
+              <div class="task-name">API Key Authentication (auth.py)</div>
+              <div class="task-desc">Every incoming request must carry <code>Authorization: Bearer &lt;API_KEY&gt;</code>. The auth layer verifies the key, resolves the twin identity, org, role, and clearance. Returns a verified twin context object used by all downstream checks.</div>
+              <div class="task-files">
+                <span class="file-chip">auth.py</span>
+              </div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🚫</div>
+            <div class="task-content">
+              <div class="task-name">Revocation + Suspension Check</div>
+              <div class="task-desc">If a twin's status is revoked or suspended, block immediately — no message should proceed. Log a SID_REVOKED event in the audit ledger. This is the security safety net.</div>
+              <div class="task-files">
+                <span class="file-chip">auth.py</span>
+                <span class="file-chip">audit.py</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 2 -->
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">2</div>
+        <div class="phase-info">
+          <div class="phase-title">Policy Engine — Permission Decision Layer</div>
+          <div class="phase-subtitle">RBAC · ABAC · Threshold checks · ALLOW / DENY / ESCALATE</div>
+        </div>
+        <div class="phase-badge badge-yours">CRITICAL</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">⚖️</div>
+            <div class="task-content">
+              <div class="task-name">RBAC — Role-Based Access Control</div>
+              <div class="task-desc">Define which roles can send which intent types. Example: only CEO and Product roles can initiate PROPOSE_LAUNCH. A Sales twin cannot send EXECUTE_SECURITY_REVIEW. Build a role-permission mapping table.</div>
+              <div class="task-files"><span class="file-chip">policy.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🏷️</div>
+            <div class="task-content">
+              <div class="task-name">ABAC — Attribute-Based Access Control</div>
+              <div class="task-desc">Layer contextual rules on top of RBAC. Checks: does sender clearance meet the required clearance? Is the action crossing an org boundary without a contract? Is the risk level HIGH? Each check can independently trigger ESCALATE or DENY.</div>
+              <div class="task-files"><span class="file-chip">policy.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">📤</div>
+            <div class="task-content">
+              <div class="task-name">Policy Decision Object</div>
+              <div class="task-desc">Every policy evaluation must return a structured decision object: <code>&#123; "decision": "ALLOW" | "DENY" | "ESCALATE", "rule_id": "...", "reason": "..." &#125;</code>. This object is attached to the audit log entry for every message.</div>
+              <div class="task-files"><span class="file-chip">policy.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔁</div>
+            <div class="task-content">
+              <div class="task-name">Gate 2 — Policy Re-Validation at Target Side</div>
+              <div class="task-desc">Policy is checked twice: once at the sender side (Gate 1) and once again at the target twin side before execution begins (Gate 2). This ensures context hasn't changed between routing and execution.</div>
+              <div class="task-files"><span class="file-chip">policy.py</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 3 -->
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">3</div>
+        <div class="phase-info">
+          <div class="phase-title">Message Envelope + Agent Router</div>
+          <div class="phase-subtitle">Structured message format · /send · /inbox · Dedup · Thread ordering</div>
+        </div>
+        <div class="phase-badge badge-yours">CORE MODULE</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">📦</div>
+            <div class="task-content">
+              <div class="task-name">Message Envelope Schema (Pydantic)</div>
+              <div class="task-desc">Define the strict JSON structure that all T2T messages must follow. Required fields: message_id (UUID), thread_id, sequence_no, from (org + twin + role + clearance), to (org + twin), intent (type + name + risk_level), payload, idempotency_key.</div>
+              <div class="task-files"><span class="file-chip">schemas.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">📨</div>
+            <div class="task-content">
+              <div class="task-name">POST /t2t/send — Send Endpoint</div>
+              <div class="task-desc">This is the entry point for all twin-to-twin messages. Flow: authenticate sender → validate schema → run Policy Gate 1 → check idempotency → store message in DB with state=ROUTED → deliver to recipient inbox → log audit event.</div>
+              <div class="task-files"><span class="file-chip">router.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">📥</div>
+            <div class="task-content">
+              <div class="task-name">GET /t2t/inbox/{twin_id} — Receive Endpoint</div>
+              <div class="task-desc">Target twin polls this endpoint to fetch pending messages addressed to it. MVP approach: polling every few seconds. Returns all ROUTED messages for that twin_id. Marks them as ACKNOWLEDGED on fetch.</div>
+              <div class="task-files"><span class="file-chip">router.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">↩️</div>
+            <div class="task-content">
+              <div class="task-name">POST /t2t/reply — Reply Endpoint</div>
+              <div class="task-desc">Target twin sends back CONFIRM, DECLINE, COMPLETE, or FAIL via this endpoint. Links back via thread_id and message_id. Triggers orchestration if CONFIRM or EXECUTE is received.</div>
+              <div class="task-files"><span class="file-chip">router.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔁</div>
+            <div class="task-content">
+              <div class="task-name">Idempotency + Deduplication</div>
+              <div class="task-desc">Store each idempotency_key in Redis with a TTL. If the same key arrives again, return the original response — do not process or re-execute. This prevents double execution of the same action due to network retries.</div>
+              <div class="task-files"><span class="file-chip">store.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔢</div>
+            <div class="task-content">
+              <div class="task-name">Thread Ordering (sequence_no)</div>
+              <div class="task-desc">Within a thread_id, messages must be processed in sequence_no order. If a message with sequence_no=5 arrives before sequence_no=4, hold it until the gap is resolved. Prevents out-of-order execution.</div>
+              <div class="task-files"><span class="file-chip">store.py</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 4 -->
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">4</div>
+        <div class="phase-info">
+          <div class="phase-title">Orchestration Layer — Execution Engine</div>
+          <div class="phase-subtitle">Intent → workflow plan → execute steps → rollback on failure</div>
+        </div>
+        <div class="phase-badge badge-yours">EXECUTION</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">📋</div>
+            <div class="task-content">
+              <div class="task-name">Intent Parser + Workflow Planner</div>
+              <div class="task-desc">When a CONFIRM or EXECUTE intent is received and policy-approved, convert it into a list of ordered workflow steps. Example: EXECUTE_SPRINT_CREATE → [create_jira_ticket, assign_team_members, set_sprint_deadline, notify_stakeholders].</div>
+              <div class="task-files"><span class="file-chip">orchestrator/planner.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔌</div>
+            <div class="task-content">
+              <div class="task-name">Adapter Interface + Registry</div>
+              <div class="task-desc">Build a common adapter interface that any tool integration can implement. Register adapters for: Jira, CRM, Google Docs, Calendar, Feature Flags, Deployment Pipelines. Start with one dummy adapter to prove the pattern works before building real integrations.</div>
+              <div class="task-files">
+                <span class="file-chip">orchestrator/adapters/base.py</span>
+                <span class="file-chip">orchestrator/adapters/jira.py</span>
+              </div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🔒</div>
+            <div class="task-content">
+              <div class="task-name">Step-Level Policy Re-Check</div>
+              <div class="task-desc">Before executing each individual workflow step, re-run the policy check for that specific action. This is important — the spec requires per-step authorization, not just per-message authorization.</div>
+              <div class="task-files"><span class="file-chip">orchestrator/executor.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">↩️</div>
+            <div class="task-content">
+              <div class="task-name">Rollback / Compensation Engine</div>
+              <div class="task-desc">If step 3 of a 5-step workflow fails, automatically reverse steps 1 and 2. Each step definition must include a compensation action (the undo). Example: if create_jira_ticket fails → delete_created_ticket. Logs a ROLLBACK_EXECUTED event.</div>
+              <div class="task-files"><span class="file-chip">orchestrator/compensation.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🧠</div>
+            <div class="task-content">
+              <div class="task-name">Memory Layer Update</div>
+              <div class="task-desc">After every successful execution, update the relevant memory stores: User Memory (personal preferences + history), Org Memory (shared knowledge base), Decision Graph (record of what was decided and why). This makes twins context-aware over time.</div>
+              <div class="task-files"><span class="file-chip">memory/</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 5 -->
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">5</div>
+        <div class="phase-info">
+          <div class="phase-title">Audit Log Service — Immutable Event Ledger</div>
+          <div class="phase-subtitle">Every state transition logged · Replayable · Non-repudiation · Compliance</div>
+        </div>
+        <div class="phase-badge badge-yours">MUST HAVE</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">📜</div>
+            <div class="task-content">
+              <div class="task-name">Events Table + log_event() Function</div>
+              <div class="task-desc">Create an append-only events table in the database. The log_event() function must be called at every pipeline stage. Standard fields: event_id, event_type, org_id, twin_id, message_id, policy_decision_ref, severity, result, reason, timestamp.</div>
+              <div class="task-files">
+                <span class="file-chip">audit.py</span>
+                <span class="file-chip">models.py</span>
+              </div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">📂</div>
+            <div class="task-content">
+              <div class="task-name">Event Taxonomy — Standard Event Types</div>
+              <div class="task-desc">All events must use standardized type names for searchability. Required types: MESSAGE_RECEIVED, MESSAGE_VALIDATED, POLICY_ALLOWED, POLICY_DENIED, ROUTED, ACKNOWLEDGED, EXECUTING, COMPLETED, FAILED, ESCALATED, ROLLBACK_EXECUTED, SLA_BREACHED.</div>
+              <div class="task-files"><span class="file-chip">audit.py</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Module 6 -->
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num orange">6</div>
+        <div class="phase-info">
+          <div class="phase-title">Notification + Escalation Service</div>
+          <div class="phase-subtitle">Alerts · Human approval workflow · SLA timer · Escalation task</div>
+        </div>
+        <div class="phase-badge badge-yours">FINAL LAYER</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body always-open">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">🔔</div>
+            <div class="task-content">
+              <div class="task-name">Notification Sender</div>
+              <div class="task-desc">After each terminal state (COMPLETED, FAILED, DENIED), send a structured notification to relevant twins. Notification types: INFORMATIONAL (FYI), ACTION_REQUIRED (needs a response), ESCALATION_REQUIRED (human must act), SLA_BREACH (deadline missed).</div>
+              <div class="task-files"><span class="file-chip">notifications.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🚨</div>
+            <div class="task-content">
+              <div class="task-name">Escalation Task Creator</div>
+              <div class="task-desc">When the Policy Engine returns ESCALATE, create a human approval task with full context: what action was requested, by which twin, risk level, and reason. Start an SLA countdown timer. If approved → resume the flow. If denied → log ESCALATION_DENIED and terminate.</div>
+              <div class="task-files"><span class="file-chip">escalation.py</span></div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">⏱️</div>
+            <div class="task-content">
+              <div class="task-name">SLA Monitoring</div>
+              <div class="task-desc">Each escalation task and critical intent has an sla_minutes field. Track whether responses are received within the SLA window. If breached, fire a SLA_BREACHED event and escalate further or auto-deny based on configured policy.</div>
+              <div class="task-files"><span class="file-chip">escalation.py</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phase 2 -->
+  <div class="section">
+    <div class="section-title future">⏳ Phase 2 — Not in Scope Right Now</div>
+    <div class="phase">
+      <div class="phase-header" onclick="toggle(this)">
+        <div class="phase-num blue">F</div>
+        <div class="phase-info">
+          <div class="phase-title">Advanced Features — Future Iterations</div>
+          <div class="phase-subtitle">WebSocket · Ed25519 signing · Cross-org contracts · Identity Graph · Biometric SID</div>
+        </div>
+        <div class="phase-badge badge-future">PHASE 2</div>
+        <div class="toggle-icon">▼</div>
+      </div>
+      <div class="phase-body">
+        <div class="task-list">
+          <div class="task">
+            <div class="task-icon">🔌</div>
+            <div class="task-content">
+              <div class="task-name">WebSocket Push (Real-time Delivery)</div>
+              <div class="task-desc">Upgrade from inbox polling to WebSocket push. Target twin maintains a persistent connection; messages are delivered instantly upon routing instead of being fetched on a timer.</div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">✍️</div>
+            <div class="task-content">
+              <div class="task-name">Ed25519 Message Signing</div>
+              <div class="task-desc">Cryptographically sign every message envelope with the sender twin's private key. Verifiable at the router — enables non-repudiation (senders cannot deny having sent a message).</div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🕸️</div>
+            <div class="task-content">
+              <div class="task-name">Full Identity Graph (Neo4j)</div>
+              <div class="task-desc">Build the complete relationship graph: BELONGS_TO, HAS_ROLE, HAS_CLEARANCE, TRUSTS (via contract), SCOPED_ACCESS. Enables complex permission queries at enterprise scale.</div>
+            </div>
+          </div>
+          <div class="task">
+            <div class="task-icon">🌍</div>
+            <div class="task-content">
+              <div class="task-name">Cross-Org Contracts + Redaction Profiles</div>
+              <div class="task-desc">Allow twins from different organizations to communicate — but only when an active contract exists with explicit scope grants. Apply redaction profiles (CROSS_ORG_SAFE, REGULATED_MINIMAL) to strip sensitive fields before cross-org delivery.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4-Day Plan -->
+  <div class="section">
+    <div class="section-title yours">📅 Suggested 4-Day Sprint — MVP to Demo</div>
+    <div class="day-plan">
+      <div class="day-card">
+        <div class="day-card-title">DAY 1</div>
+        <ul>
+          <li>FastAPI project scaffold</li>
+          <li>DB models + migrations</li>
+          <li>schemas.py (Envelope + Intent)</li>
+          <li>auth.py (API key verify)</li>
+          <li>SID revocation check</li>
+          <li>audit.py + log_event()</li>
+        </ul>
+      </div>
+      <div class="day-card">
+        <div class="day-card-title">DAY 2</div>
+        <ul>
+          <li>policy.py (RBAC + ABAC)</li>
+          <li>POST /t2t/send endpoint</li>
+          <li>GET /t2t/inbox endpoint</li>
+          <li>POST /t2t/reply endpoint</li>
+          <li>Idempotency via Redis</li>
+          <li>Thread ordering logic</li>
+        </ul>
+      </div>
+      <div class="day-card">
+        <div class="day-card-title">DAY 3</div>
+        <ul>
+          <li>Orchestrator planner</li>
+          <li>Dummy adapter (1 tool)</li>
+          <li>Step-level policy re-check</li>
+          <li>Rollback skeleton</li>
+          <li>Escalation task creator</li>
+          <li>Notification sender</li>
+        </ul>
+      </div>
+      <div class="day-card">
+        <div class="day-card-title">DAY 4</div>
+        <ul>
+          <li>End-to-end integration test</li>
+          <li>bilal_twin → ritwik_twin flow</li>
+          <li>Audit trail verification</li>
+          <li>Escalation flow test</li>
+          <li>README + API docs</li>
+          <li>Team demo 🚀</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer note -->
+  <div style="margin-top:40px; padding:16px 20px; border:1px solid var(--border); border-radius:8px; background:var(--card);">
+    <p style="font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--muted); line-height:1.8;">
+      <span style="color:var(--accent);">STACK:</span> Python · FastAPI · PostgreSQL · Redis · WebSocket (Phase 2)<br>
+      <span style="color:var(--accent);">CORE RULE:</span> Twins are NOT chatbots. They are policy-bound, auditable workflow coordinators.<br>
+      <span style="color:var(--accent);">DEMO TARGET:</span> bilal_exec_twin sends PROPOSE → policy validates → syed_product_twin CONFIRMs → orchestrator EXECUTEs → full audit trail generated.
+    </p>
+  </div>
+
+</div>
+
+<script>
+function toggle(header) {
+  const body = header.nextElementSibling;
+  const icon = header.querySelector('.toggle-icon');
+  if (body.classList.contains('always-open')) return;
+  body.classList.toggle('open');
+  icon.classList.toggle('open');
+}
+</script>
+</body>
+</html>

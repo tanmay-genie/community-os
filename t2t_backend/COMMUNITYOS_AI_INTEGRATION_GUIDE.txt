@@ -1,0 +1,618 @@
+================================================================================
+     T2T BACKEND — AI INTEGRATION GUIDE FOR COMMUNITYOS
+================================================================================
+
+Prepared by: Genie AI / T2T Backend Team
+For: CommunityOS Development Team
+Version: 1.0
+Date: 2026-04-05
+
+================================================================================
+  WHAT IS T2T BACKEND?
+================================================================================
+
+T2T Backend = AI Gateway for CommunityOS
+
+CommunityOS ka apna app hai (properties, bookings, payments, UI, etc.)
+Jab bhi app ko AI chahiye — woh T2T Backend ko call karega.
+
+T2T Backend provides:
+  - Secure Human <-> AI Twin communication
+  - Policy-gated AI actions (kaun kya kar sakta hai)
+  - Full audit trail of every AI decision
+  - Real-time WebSocket push for AI responses
+  - Contextual memory (AI remembers past interactions)
+  - Escalation (AI unsure → human approval)
+
+CommunityOS app does NOT need to:
+  - Build its own AI pipeline
+  - Handle AI permissions/security
+  - Build audit logging for AI
+  - Manage AI memory/context
+
+================================================================================
+  ARCHITECTURE OVERVIEW
+================================================================================
+
+┌─────────────────────────────────────────────────────────┐
+│              CommunityOS App (Frontend + Backend)        │
+│                                                          │
+│  Property CRUD, Bookings, Payments, Events, Chat UI      │
+│                                                          │
+│  When AI is needed:                                      │
+│    1. App creates a Twin for each user (one-time)        │
+│    2. App sends message to AI Twin via T2T API           │
+│    3. T2T processes, checks policy, executes             │
+│    4. App receives AI response via WebSocket or polling   │
+└──────────────────────┬───────────────────────────────────┘
+                       │
+                       ▼
+┌─────────────────────────────────────────────────────────┐
+│                    T2T Backend                           │
+│                 (AI Gateway Layer)                        │
+│                                                          │
+│  POST /t2t/send           → Send message to AI Twin      │
+│  GET  /t2t/inbox/{twin}   → Get AI responses             │
+│  POST /t2t/reply          → Confirm/Decline AI action    │
+│  WS   /t2t/ws/{twin}      → Real-time AI responses       │
+│  GET  /t2t/notifications/  → AI notifications            │
+│  POST /admin/twins/register → Register new twin          │
+│  GET  /admin/audit/*       → AI audit trail              │
+│  POST /escalation/*/approve → Approve AI escalation      │
+└─────────────────────────────────────────────────────────┘
+
+Server:  http://localhost:8000
+Docs:    http://localhost:8000/docs
+Health:  http://localhost:8000/health
+
+
+================================================================================
+  SETUP: HOW COMMUNITYOS CONNECTS TO T2T
+================================================================================
+
+Step 1: Register Twins (One-time per user)
+──────────────────────────────────────────
+
+When a member or admin signs up in CommunityOS, register their AI Twin:
+
+  POST /admin/twins/register
+  Header: X-Admin-Secret: <your-admin-secret>
+
+  Body:
+  {
+    "twin_id":    "member_rahul_301",       // unique user identifier
+    "org_id":     "property_sunrise_towers", // property they belong to
+    "role":       "MEMBER",                  // MEMBER | ADMIN | MANAGER
+    "clearance":  "INTERNAL",                // PUBLIC | INTERNAL | CONFIDENTIAL
+    "raw_api_key": "sk-rahul-secure-key",   // API key for this twin
+    "autonomy_level": "ASSISTIVE",           // how much AI can do alone
+    "max_risk_level": "MEDIUM"               // max risk AI can handle
+  }
+
+  Also register an AI Twin for the property:
+
+  {
+    "twin_id":    "ai_assistant_sunrise",
+    "org_id":     "property_sunrise_towers",
+    "role":       "AI",
+    "clearance":  "INTERNAL",
+    "raw_api_key": "sk-ai-sunrise-key",
+    "autonomy_level": "SEMI_AUTONOMOUS",
+    "max_risk_level": "MEDIUM"
+  }
+
+  Response:
+  {
+    "status": "registered",
+    "twin_id": "member_rahul_301",
+    "org_id": "property_sunrise_towers",
+    "role": "MEMBER"
+  }
+
+
+Step 2: Send Messages to AI Twin
+─────────────────────────────────
+
+  POST /t2t/send
+  Header: Authorization: Bearer sk-rahul-secure-key
+
+  Body (MessageEnvelope):
+  {
+    "thread_id":    "conv-12345",
+    "sequence_no":  1,
+    "from": {
+      "org_id":  "property_sunrise_towers",
+      "twin_id": "member_rahul_301"
+    },
+    "to": {
+      "org_id":  "property_sunrise_towers",
+      "twin_id": "ai_assistant_sunrise"
+    },
+    "intent": {
+      "type":       "REQUEST",
+      "name":       "ai_chat",
+      "risk_level": "LOW"
+    },
+    "payload": {
+      "message": "Book gym at 7pm tomorrow",
+      "context": "voice_input"
+    }
+  }
+
+  Response:
+  {
+    "status": "routed",
+    "message_id": "msg-uuid-here",
+    "decision": "ALLOW",
+    "reason": null
+  }
+
+
+Step 3: Receive AI Response
+───────────────────────────
+
+  Option A — WebSocket (Real-time, recommended):
+
+    Connect: ws://localhost:8000/t2t/ws/member_rahul_301
+    Send:    {"token": "sk-rahul-secure-key"}
+    Receive: {"type": "auth_ok"}
+    Then:    Server pushes AI responses as they arrive
+
+  Option B — Polling:
+
+    GET /t2t/inbox/member_rahul_301
+    Header: Authorization: Bearer sk-rahul-secure-key
+
+    Response:
+    [
+      {
+        "message_id": "msg-uuid",
+        "thread_id": "conv-12345",
+        "from_twin_id": "ai_assistant_sunrise",
+        "intent_type": "UPDATE",
+        "payload": {
+          "response": "Gym booked for 7pm tomorrow. Confirmation #GYM-4521."
+        },
+        "state": "ROUTED",
+        "created_at": "2026-04-05T12:30:00"
+      }
+    ]
+
+
+Step 4: Confirm/Decline AI Actions (when needed)
+─────────────────────────────────────────────────
+
+  For high-risk actions, AI will ask for confirmation:
+
+  POST /t2t/reply
+  Header: Authorization: Bearer sk-rahul-secure-key
+
+  Body:
+  {
+    "thread_id":          "conv-12345",
+    "original_message_id": "msg-uuid",
+    "from_twin_id":       "member_rahul_301",
+    "intent_type":        "CONFIRM",    // or "DECLINE"
+    "payload": {}
+  }
+
+
+================================================================================
+  AI FEATURE → API MAPPING
+================================================================================
+
+Below is how each CommunityOS AI feature maps to T2T Backend API calls.
+CommunityOS app just needs to make these API calls — T2T handles the rest.
+
+┌─────────────────────────┬────────────────────────────────────────────────────┐
+│ CommunityOS AI Feature  │ T2T Backend API Usage                             │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 1. AI Voice & Chat      │ POST /t2t/send                                    │
+│    User talks to AI     │   from: member_twin                               │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: REQUEST, name: "ai_chat"                │
+│                         │   payload: { message: "user's text/voice" }       │
+│                         │                                                    │
+│                         │ Response via:                                       │
+│                         │   WebSocket /t2t/ws/{twin_id}  (real-time)         │
+│                         │   GET /t2t/inbox/{twin_id}     (polling)           │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 2. Voice Navigation     │ POST /t2t/send                                    │
+│    "Go to events page"  │   intent: EXECUTE, name: "voice_navigation"       │
+│    "Show my tickets"    │   payload: { command: "navigate",                 │
+│                         │              target: "events_page" }               │
+│                         │                                                    │
+│                         │ AI Twin responds with action for app to execute:   │
+│                         │   payload: { action: "navigate",                   │
+│                         │              screen: "/events" }                   │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 3. AI Content Gen       │ POST /t2t/send                                    │
+│    Auto-create posts    │   from: admin_twin                                │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: REQUEST, name: "content_generation"      │
+│                         │   payload: { type: "announcement",                │
+│                         │              topic: "Holi celebration",            │
+│                         │              tone: "festive" }                     │
+│                         │                                                    │
+│                         │ AI responds with:                                   │
+│                         │   payload: { title: "...", body: "...",            │
+│                         │              suggested_image: "..." }              │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 4. AI Ticket Triage     │ POST /t2t/send                                    │
+│    Categorize issues    │   from: system_twin (or admin_twin)               │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: REQUEST, name: "ticket_triage"           │
+│                         │   payload: { ticket_id: "T-100",                  │
+│                         │              description: "AC not working...",     │
+│                         │              unit: "B-301" }                       │
+│                         │                                                    │
+│                         │ AI responds with:                                   │
+│                         │   payload: { category: "maintenance",             │
+│                         │              priority: "high",                     │
+│                         │              suggested_assignee: "maintenance_team",│
+│                         │              estimated_time: "2 hours" }           │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 5. AI Moderation        │ POST /t2t/send                                    │
+│    Content filtering    │   from: system_twin                               │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: POLICY_CHECK, name: "content_moderation" │
+│                         │   payload: { content: "user's post text",         │
+│                         │              content_type: "community_post" }      │
+│                         │                                                    │
+│                         │ AI responds with:                                   │
+│                         │   payload: { approved: true/false,                │
+│                         │              flags: ["spam", "offensive"],         │
+│                         │              confidence: 0.95 }                    │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 6. AI Insights          │ POST /t2t/send                                    │
+│    Trends & analytics   │   from: admin_twin                                │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: REQUEST, name: "insights"                │
+│                         │   payload: { type: "weekly_summary",              │
+│                         │              property: "sunrise_towers",           │
+│                         │              period: "last_7_days" }               │
+│                         │                                                    │
+│                         │ AI responds with:                                   │
+│                         │   payload: { summary: "...",                       │
+│                         │              top_issues: [...],                    │
+│                         │              engagement_score: 78,                 │
+│                         │              trends: [...] }                       │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 7. AI Ops Assistant     │ POST /t2t/send                                    │
+│    Admin command center │   from: admin_twin                                │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: EXECUTE, name: "ops_command"             │
+│                         │   risk_level: MEDIUM                               │
+│                         │   payload: { command: "send_announcement",        │
+│                         │              message: "Water shut off 2-4pm" }     │
+│                         │                                                    │
+│                         │ If risk is HIGH → T2T auto-escalates:              │
+│                         │   POST /escalation/{task_id}/approve (human OK)    │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 8. AI Member Invites    │ POST /t2t/send                                    │
+│    AI-assisted outreach │   from: admin_twin                                │
+│                         │   to:   ai_assistant_twin                          │
+│                         │   intent: REQUEST, name: "member_invite"           │
+│                         │   payload: { unit: "B-302",                       │
+│                         │              resident_name: "Priya Sharma",       │
+│                         │              channel: "whatsapp" }                 │
+│                         │                                                    │
+│                         │ AI responds with:                                   │
+│                         │   payload: { invite_message: "...",               │
+│                         │              suggested_channel: "whatsapp",       │
+│                         │              personalization_score: 0.87 }         │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 9. AI Twin (Avatar)     │ Same as AI Voice & Chat, but with avatar context: │
+│    Avatar interaction   │   payload: { message: "...",                      │
+│                         │              mode: "avatar",                       │
+│                         │              avatar_state: "greeting" }            │
+│                         │                                                    │
+│                         │ AI responds with avatar instructions:              │
+│                         │   payload: { response: "...",                      │
+│                         │              avatar_animation: "wave",             │
+│                         │              emotion: "happy" }                    │
+│                         │                                                    │
+├─────────────────────────┼────────────────────────────────────────────────────┤
+│                         │                                                    │
+│ 10. AI Audit Logs       │ Built-in. Every AI interaction is auto-logged.    │
+│     Track AI decisions  │                                                    │
+│                         │ Query audit trail:                                 │
+│                         │   GET /admin/audit/twin/{twin_id}                  │
+│                         │   GET /admin/audit/message/{message_id}            │
+│                         │   GET /admin/audit/denied/{org_id}                 │
+│                         │                                                    │
+│                         │ No extra work needed — T2T logs everything.        │
+│                         │                                                    │
+└─────────────────────────┴────────────────────────────────────────────────────┘
+
+
+================================================================================
+  ROLES & PERMISSIONS (CommunityOS Mapping)
+================================================================================
+
+T2T Backend uses RBAC (Role-Based Access Control) to decide what each
+role can do with AI. CommunityOS needs these roles configured:
+
+┌──────────────┬────────────────────────────────────────────────────────┐
+│ Role         │ Allowed AI Actions                                     │
+├──────────────┼────────────────────────────────────────────────────────┤
+│ MEMBER       │ REQUEST (chat, voice), EXECUTE (low-risk only)         │
+│              │ Can: talk to AI, ask questions, voice navigate          │
+│              │ Cannot: generate content, run ops commands              │
+│              │                                                         │
+│ ADMIN        │ All intents — full AI access                            │
+│              │ Can: content gen, ticket triage, insights, ops commands │
+│              │ High-risk actions → escalation for approval             │
+│              │                                                         │
+│ MANAGER      │ REQUEST, PROPOSE, EXECUTE, ESCALATE                    │
+│              │ Can: most AI features except policy changes             │
+│              │                                                         │
+│ AI           │ REQUEST, PROPOSE, CONFIRM, DECLINE, UPDATE             │
+│              │ The AI Twin itself — can respond, suggest, update       │
+│              │                                                         │
+│ SYSTEM       │ All intents                                             │
+│              │ For automated triggers (moderation, triage pipelines)   │
+└──────────────┴────────────────────────────────────────────────────────┘
+
+Note: These roles need to be added to policy/rbac_rules.py in T2T Backend.
+Current roles (Founder_CEO, Product, Engineering, etc.) are for Genie AI
+internal use. CommunityOS-specific roles will be configured before delivery.
+
+
+================================================================================
+  SECURITY FEATURES (Built-in)
+================================================================================
+
+CommunityOS gets these security features out-of-the-box:
+
+  1. Authentication
+     - Every API call requires Bearer token (API key)
+     - Twin identity verified via bcrypt hash
+     - Optional Ed25519 message signing for non-repudiation
+
+  2. Policy Enforcement (Two Gates)
+     - Gate 1: Before routing (can this user talk to AI?)
+     - Gate 2: Before execution (can this action be performed?)
+     - RBAC (role-based) + ABAC (attribute-based) checks
+
+  3. Escalation
+     - HIGH/CRITICAL risk actions → auto-escalated to human admin
+     - SLA timer on escalation tasks
+     - Admin approves/denies via API
+
+  4. Audit Trail
+     - Every message, policy decision, and AI action is logged
+     - Immutable append-only audit ledger
+     - Query by twin, message, or org
+
+  5. Cross-Property Isolation
+     - Each property = separate org_id
+     - Members can only talk to their property's AI Twin
+     - Cross-property comms require explicit contracts
+
+  6. Data Redaction
+     - Cross-org messages auto-redact PII (email, phone, SSN)
+     - 3 redaction profiles: INTERNAL_FULL, CROSS_ORG_SAFE, REGULATED_MINIMAL
+
+  7. Loop Detection
+     - Prevents infinite AI message loops
+     - Redis-based hop counter per thread
+
+  8. Idempotency
+     - Duplicate messages are rejected (Redis-based)
+     - Safe retries without double-processing
+
+  9. Memory
+     - Per-user memory (AI remembers preferences, past requests)
+     - Per-org memory (property-level shared context)
+     - Decision memory (what decisions were made and why)
+
+
+================================================================================
+  REAL-TIME: WEBSOCKET INTEGRATION
+================================================================================
+
+For live AI responses (chat, voice), use WebSocket:
+
+  1. Connect:    ws://localhost:8000/t2t/ws/{twin_id}
+  2. Auth:       Send {"token": "sk-user-api-key"} within 10 seconds
+  3. Receive:    {"type": "auth_ok"}
+  4. Listen:     Server pushes messages as JSON objects
+  5. Heartbeat:  Send {"ping": true} periodically
+
+  Messages pushed look like:
+  {
+    "message_id": "...",
+    "thread_id": "...",
+    "from_twin_id": "ai_assistant_sunrise",
+    "intent_type": "UPDATE",
+    "payload": { "response": "AI's answer here" },
+    "created_at": "2026-04-05T12:30:00"
+  }
+
+
+================================================================================
+  NOTIFICATIONS
+================================================================================
+
+AI-related notifications are auto-created by T2T Backend:
+
+  GET /t2t/notifications/
+  Header: Authorization: Bearer sk-user-api-key
+
+  Response:
+  [
+    {
+      "notification_id": "...",
+      "type": "INFORMATIONAL",         // or ACTION_REQUIRED, ESCALATION_REQUIRED
+      "title": "AI completed your request",
+      "body": "Gym booked for 7pm tomorrow",
+      "message_id": "...",
+      "is_read": false,
+      "created_at": "2026-04-05T12:30:00"
+    }
+  ]
+
+  Types:
+    INFORMATIONAL         — AI completed something (FYI)
+    ACTION_REQUIRED       — AI needs user input
+    ESCALATION_REQUIRED   — AI needs admin approval
+    SLA_BREACH            — Escalation task expired without decision
+
+
+================================================================================
+  ESCALATION FLOW (AI → Human Approval)
+================================================================================
+
+When AI encounters high-risk action:
+
+  1. Member sends: "Cancel all bookings for unit B-301"
+  2. T2T policy engine sees: risk=HIGH, member role → ESCALATE
+  3. EscalationTask created automatically
+  4. Admin gets notified (ESCALATION_REQUIRED notification)
+
+  Admin views pending escalations:
+    GET /escalation/pending/{org_id}
+
+  Admin approves:
+    POST /escalation/{task_id}/approve
+    Body: { "decided_by": "admin_twin_id", "reason": "Approved, tenant moving out" }
+
+  Admin denies:
+    POST /escalation/{task_id}/deny
+    Body: { "decided_by": "admin_twin_id", "reason": "Not authorized" }
+
+
+================================================================================
+  MEMORY (AI CONTEXT)
+================================================================================
+
+T2T Backend maintains AI memory automatically:
+
+  Per-User Memory (Redis):
+    - Stores last 500 interactions per twin
+    - 90-day TTL
+    - AI uses this to personalize responses
+    - Example: AI remembers user prefers morning gym slots
+
+  Per-Org Memory (Redis):
+    - Shared property-level context
+    - Example: AI knows "Sunrise Towers has gym, pool, parking"
+
+  Decision Memory (Redis):
+    - Records what AI decided and why
+    - Used for audit and learning
+
+
+================================================================================
+  COMPLETE API REFERENCE
+================================================================================
+
+Base URL: http://localhost:8000
+
+  CORE T2T APIs:
+  ──────────────
+  POST /t2t/send                     → Send message to AI Twin
+  GET  /t2t/inbox/{twin_id}          → Fetch AI responses (polling)
+  POST /t2t/reply                    → Confirm/Decline AI action
+  WS   /t2t/ws/{twin_id}            → Real-time AI responses
+
+  NOTIFICATIONS:
+  ──────────────
+  GET  /t2t/notifications/           → Get my notifications
+
+  ESCALATION:
+  ───────────
+  GET  /escalation/pending/{org_id}  → View pending escalations
+  POST /escalation/{task_id}/approve → Approve escalated action
+  POST /escalation/{task_id}/deny    → Deny escalated action
+
+  ADMIN (requires X-Admin-Secret header):
+  ───────────────────────────────────────
+  POST /admin/twins/register         → Register a new twin
+  GET  /admin/audit/message/{id}     → Audit trail for a message
+  GET  /admin/audit/twin/{id}        → Audit trail for a twin
+  GET  /admin/audit/denied/{org_id}  → All denied policy decisions
+  POST /admin/contracts              → Create cross-property contract
+  GET  /admin/contracts/{org_id}     → List contracts for a property
+
+  SYSTEM:
+  ───────
+  GET  /health                       → System health check
+  GET  /                             → Service info
+  GET  /docs                         → Swagger UI (interactive docs)
+
+
+================================================================================
+  WHAT COMMUNITYOS TEAM NEEDS TO DO
+================================================================================
+
+  1. On User Signup:
+     → Call POST /admin/twins/register for each new member/admin
+
+  2. On Property Creation:
+     → Call POST /admin/twins/register for property's AI Twin
+
+  3. For AI Chat/Voice:
+     → Connect WebSocket /t2t/ws/{twin_id}
+     → Send messages via POST /t2t/send
+     → Display AI responses from WebSocket
+
+  4. For AI Features (content gen, triage, insights, etc.):
+     → POST /t2t/send with appropriate intent + payload
+     → Handle response from inbox or WebSocket
+
+  5. For Admin Escalations:
+     → Show pending escalations from GET /escalation/pending/{org_id}
+     → Admin approves/denies
+
+  6. For AI Audit Dashboard:
+     → Query GET /admin/audit/* endpoints
+     → Display in admin panel
+
+  Everything else (policy, security, memory, audit logging)
+  is handled automatically by T2T Backend.
+
+
+================================================================================
+  WHAT T2T BACKEND TEAM NEEDS TO DELIVER
+================================================================================
+
+  Already Built:
+  ✓ Message routing (send/inbox/reply)
+  ✓ WebSocket real-time push
+  ✓ Authentication (API key + Ed25519)
+  ✓ Policy engine (RBAC + ABAC)
+  ✓ Audit trail
+  ✓ Notifications
+  ✓ Escalation
+  ✓ Memory (user/org/decision)
+  ✓ Cross-org contracts + redaction
+  ✓ Loop detection + idempotency
+
+  To Be Configured for CommunityOS:
+  → Add MEMBER, ADMIN, MANAGER, SYSTEM roles to rbac_rules.py
+  → Configure CommunityOS-specific intent names
+  → Set up property-specific org_ids
+  → Connect AI model (LLM) to AI Twin's response generation
+
+================================================================================
+  END OF DOCUMENT
+================================================================================

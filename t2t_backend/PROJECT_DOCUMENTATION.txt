@@ -1,0 +1,689 @@
+================================================================================
+      GENIE AI — T2T (Twin-to-Twin) BACKEND — COMPLETE PROJECT DOCUMENTATION
+================================================================================
+
+Created: 2026-03-06
+Server:  http://localhost:8000
+Docs:    http://localhost:8000/docs
+Health:  http://localhost:8000/health
+
+Core Pipeline:
+  Human → Twin → SID → Policy → Router → Target Twin → Policy →
+  Orchestrator → Audit → Notify
+
+================================================================================
+                            TABLE OF CONTENTS
+================================================================================
+
+  1.  Project Overview
+  2.  Root-Level Files
+  3.  schemas/        — Data Validation (Pydantic)
+  4.  auth/           — Authentication & Cryptography
+  5.  policy/         — Policy Engine (RBAC + ABAC + Contracts + Redaction)
+  6.  router/         — Message Routing, Storage & WebSocket
+  7.  orchestrator/   — Workflow Execution Engine
+  8.  audit/          — Immutable Audit Ledger
+  9.  notifications/  — Notifications & Escalation
+  10. memory/         — Contextual Memory (Redis)
+  11. admin/          — Admin API
+  12. tests/          — Test Suite
+  13. API Endpoints Summary
+  14. Configuration Reference
+  15. Database Tables
+
+================================================================================
+  1. PROJECT OVERVIEW
+================================================================================
+
+The T2T Backend is a production-grade protocol server for secure,
+policy-gated, auditable communication between AI Digital Twins.
+
+Key Principles:
+  - Every message passes through a strict multi-gate pipeline
+  - RBAC + ABAC policy enforcement at two gates (pre-routing + pre-execution)
+  - Immutable audit trail for every action
+  - Ed25519 cryptographic message signing for non-repudiation
+  - WebSocket real-time push with polling fallback
+  - Cross-organization contract and redaction support
+  - Loop detection to prevent infinite message cycles
+
+Tech Stack:
+  - FastAPI (async Python web framework)
+  - SQLAlchemy 2.0 (async ORM with PostgreSQL)
+  - Redis (idempotency, caching, loop detection, memory)
+  - PyNaCl (Ed25519 signing via libsodium)
+  - Pydantic v2 (strict schema validation)
+  - Bcrypt (API key hashing)
+
+
+================================================================================
+  2. ROOT-LEVEL FILES
+================================================================================
+
+┌─────────────────────┬──────────────────────────────────────────────────────┐
+│ File                │ Purpose                                              │
+├─────────────────────┼──────────────────────────────────────────────────────┤
+│ app.py              │ MAIN ENTRY POINT. Sets up FastAPI app, CORS,         │
+│                     │ global exception handler, lifecycle events            │
+│                     │ (startup/shutdown), and registers all routers:        │
+│                     │   - t2t_router   → /t2t/*                            │
+│                     │   - ws_router    → /t2t/ws/*  (WebSocket)            │
+│                     │   - notif_router → /notifications/*                  │
+│                     │   - esc_router   → /escalation/*                     │
+│                     │   - admin_router → /admin/*                          │
+│                     │ On startup: imports adapters, creates DB tables       │
+│                     │ (dev mode), verifies Redis connection.                │
+│                     │                                                      │
+│ config.py           │ Centralized settings loaded from .env via Pydantic.  │
+│                     │ All config values used across the app come from      │
+│                     │ here: DATABASE_URL, REDIS_URL, APP_ENV,              │
+│                     │ ADMIN_SECRET, WS_AUTH_TIMEOUT_SECONDS,               │
+│                     │ LOOP_DETECTION_MAX_HOPS, etc.                        │
+│                     │ Usage: from config import settings                   │
+│                     │                                                      │
+│ redis_client.py     │ Manages the shared async Redis connection.           │
+│                     │ Provides get_redis() and close_redis() functions.    │
+│                     │ Used by: store.py (idempotency, sequences, loops),   │
+│                     │ memory/ modules.                                     │
+│                     │                                                      │
+│ requirements.txt    │ All Python dependencies with pinned versions.        │
+│                     │ Key deps: fastapi, sqlalchemy, redis, pynacl,        │
+│                     │ websockets, bcrypt, httpx, tenacity, pytest.         │
+│                     │                                                      │
+│ .env                │ Actual environment variables (not in git).           │
+│                     │ Contains your local DB credentials, Redis URL,       │
+│                     │ admin secret, and other runtime config.              │
+│                     │                                                      │
+│ .env.example        │ Template showing all available env variables.        │
+│                     │ Copy to .env and fill in your values.                │
+│                     │                                                      │
+│ README.md           │ Project overview, setup instructions, API usage.     │
+│                     │                                                      │
+│ t2t_flow_diagram    │ Visual flow diagram of the T2T communication        │
+│ .html               │ pipeline (HTML).                                     │
+│                     │                                                      │
+│ t2t_work_breakdown  │ Detailed work breakdown structure showing all        │
+│ .html               │ phases and tasks (HTML).                             │
+└─────────────────────┴──────────────────────────────────────────────────────┘
+
+
+================================================================================
+  3. schemas/ — DATA VALIDATION (Pydantic)
+================================================================================
+
+All Pydantic models that define the strict JSON structure of T2T messages.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ envelope.py      │ THE CORE MESSAGE SCHEMA. Defines MessageEnvelope —      │
+│                  │ the strict JSON structure every T2T message must         │
+│                  │ follow:                                                  │
+│                  │                                                          │
+│                  │ Classes:                                                  │
+│                  │   PartyBlock     — sender/recipient (org_id, twin_id)    │
+│                  │   IntentBlock    — intent type, name, risk, SLA          │
+│                  │   ScopeBlock     — project, contract_id, redaction       │
+│                  │   SecurityBlock  — signature, nonce, idempotency_key     │
+│                  │   TelemetryBlock — latency, hops, timestamps             │
+│                  │   MessageEnvelope— combines all blocks into one schema   │
+│                  │                                                          │
+│                  │ Key Methods:                                              │
+│                  │   get_signable_bytes() → canonical JSON bytes for        │
+│                  │   Ed25519 signing (excludes signature field itself)       │
+│                  │                                                          │
+│                  │ Also defines:                                             │
+│                  │   SendResponse   — response model for POST /t2t/send     │
+│                  │   ReplyEnvelope  — schema for POST /t2t/reply            │
+│                  │   InboxMessage   — schema for GET /t2t/inbox             │
+│                  │                                                          │
+│                  │ Used by: router.py (validation), store.py (persistence), │
+│                  │ crypto.py (signing), policy.py (checks)                  │
+│                  │                                                          │
+│ intents.py       │ ALL ENUMERATIONS used across the system:                 │
+│                  │                                                          │
+│                  │   IntentType      — REQUEST, PROPOSE, EXECUTE, etc.      │
+│                  │   RiskLevel       — LOW, MEDIUM, HIGH, CRITICAL          │
+│                  │   ClearanceLevel  — PUBLIC, INTERNAL, CONFIDENTIAL,      │
+│                  │                     SECRET                               │
+│                  │   MessageState    — RECEIVED, VALIDATED, SCOPED,         │
+│                  │                     ROUTED, ACKNOWLEDGED, DECIDED,       │
+│                  │                     EXECUTING, COMPLETED, FAILED,        │
+│                  │                     ESCALATED, CANCELLED                 │
+│                  │   AutonomyLevel   — MANUAL, SUPERVISED, SEMI_AUTONOMOUS, │
+│                  │                     AUTONOMOUS                           │
+│                  │   TwinStatus      — ACTIVE, SUSPENDED, REVOKED          │
+│                  │   PolicyDecision  — ALLOW, DENY, ESCALATE               │
+│                  │                                                          │
+│                  │ Used by: EVERY module — this standardizes all values     │
+│                  │ used for policy, state machines, and role checks.        │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  4. auth/ — AUTHENTICATION & CRYPTOGRAPHY
+================================================================================
+
+Handles twin identity verification, API key management, and Ed25519 signing.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ db.py            │ DATABASE ENGINE SETUP. Creates the async SQLAlchemy     │
+│                  │ engine and session factory.                              │
+│                  │                                                          │
+│                  │ Exports:                                                  │
+│                  │   engine            — async PostgreSQL engine             │
+│                  │   AsyncSessionLocal — session factory                     │
+│                  │   Base              — declarative base for all ORM models │
+│                  │   get_db()          — FastAPI dependency (yields session) │
+│                  │   create_all_tables()— dev-only table creation            │
+│                  │                                                          │
+│                  │ Used by: EVERY module that touches the database.          │
+│                  │ This is the single source of truth for DB connections.    │
+│                  │                                                          │
+│ models.py        │ TWIN ORM MODEL (twins table). Defines TwinModel with:   │
+│                  │                                                          │
+│                  │   twin_id           — unique identifier                   │
+│                  │   org_id            — organization this twin belongs to   │
+│                  │   role              — role (e.g., ENGINEER, MANAGER)      │
+│                  │   clearance         — clearance level (PUBLIC..SECRET)    │
+│                  │   autonomy_level    — how autonomous this twin is         │
+│                  │   status            — ACTIVE / SUSPENDED / REVOKED        │
+│                  │   api_key_hash      — bcrypt hash of the API key          │
+│                  │   api_key_lookup_hash — SHA-256 hash for O(1) lookups    │
+│                  │   signing_public_key — Ed25519 public key (base64)       │
+│                  │   budget_threshold_usd — spending limit                   │
+│                  │   max_risk_level    — max risk this twin can handle       │
+│                  │                                                          │
+│                  │ Used by: auth.py (lookup), admin_router.py (register)     │
+│                  │                                                          │
+│ auth.py          │ AUTHENTICATION DEPENDENCY. The verify_twin() function   │
+│                  │ is a FastAPI dependency injected into every T2T           │
+│                  │ endpoint.                                                 │
+│                  │                                                          │
+│                  │ Pipeline:                                                  │
+│                  │   1. Extract Bearer token from Authorization header       │
+│                  │   2. Compute SHA-256 lookup hash → O(1) indexed query     │
+│                  │   3. If not found, fallback to full bcrypt scan           │
+│                  │      (auto-backfills lookup hash for legacy twins)        │
+│                  │   4. Verify bcrypt hash (timing-safe)                     │
+│                  │   5. Check status (reject REVOKED/SUSPENDED)              │
+│                  │   6. Return TwinContext dataclass                         │
+│                  │                                                          │
+│                  │ TwinContext contains: twin_id, org_id, role, clearance,   │
+│                  │ autonomy_level, signing_public_key, budget, max_risk      │
+│                  │                                                          │
+│                  │ Also exports register_twin() for admin registration.      │
+│                  │                                                          │
+│                  │ Used by: router.py, admin_router.py, websocket.py         │
+│                  │                                                          │
+│ crypto.py        │ ED25519 CRYPTOGRAPHIC OPERATIONS using PyNaCl.           │
+│                  │                                                          │
+│                  │ Functions:                                                 │
+│                  │   generate_keypair() → (private_b64, public_b64)          │
+│                  │   sign_message(private_key, bytes) → signature_b64        │
+│                  │   verify_signature(public_key, bytes, sig) → bool         │
+│                  │                                                          │
+│                  │ Flow:                                                      │
+│                  │   1. Twin generates keypair, registers public key          │
+│                  │   2. Before sending, twin signs get_signable_bytes()       │
+│                  │   3. Router calls verify_signature() before policy gate    │
+│                  │   4. Invalid signature → 401 + audit log                  │
+│                  │                                                          │
+│                  │ Used by: router.py (verification step 1b)                 │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  5. policy/ — POLICY ENGINE (RBAC + ABAC + CONTRACTS + REDACTION)
+================================================================================
+
+Two-gate policy enforcement. Every message is checked TWICE:
+  Gate 1: Pre-routing (in send_message)
+  Gate 2: Pre-execution (in reply_message when CONFIRM is received)
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ policy.py        │ MAIN POLICY ENGINE. Orchestrates RBAC + ABAC checks.   │
+│                  │                                                          │
+│                  │ Function: policy_check()                                  │
+│                  │   Input:  gate, twin context, envelope                    │
+│                  │   Output: PolicyResult (ALLOW / DENY / ESCALATE)         │
+│                  │                                                          │
+│                  │ Steps:                                                     │
+│                  │   1. Check RBAC (role allowed for this intent?)           │
+│                  │   2. Check ABAC (clearance, risk, autonomy, cross-org)    │
+│                  │   3. Log decision to audit trail                          │
+│                  │   4. Return result with rule_id and reason                │
+│                  │                                                          │
+│                  │ Used by: router.py (both /send and /reply)                │
+│                  │                                                          │
+│ rbac_rules.py    │ ROLE-BASED ACCESS CONTROL matrix.                       │
+│                  │                                                          │
+│                  │ ROLE_PERMISSIONS dict maps roles → allowed intents:       │
+│                  │   ENGINEER  → [REQUEST, INFORM, QUERY, COMPLETE]          │
+│                  │   MANAGER   → [REQUEST, PROPOSE, APPROVE, EXECUTE, ...]   │
+│                  │   ADMIN     → all intents                                 │
+│                  │   OBSERVER  → [QUERY, INFORM] only                        │
+│                  │   etc.                                                     │
+│                  │                                                          │
+│                  │ Used by: policy.py (first gate check)                     │
+│                  │                                                          │
+│ abac_rules.py    │ ATTRIBUTE-BASED ACCESS CONTROL rules.                   │
+│                  │                                                          │
+│                  │ evaluate_abac() checks 6 rules:                           │
+│                  │   Rule 1: Clearance level sufficient?                     │
+│                  │   Rule 2: Risk vs autonomy level check                    │
+│                  │   Rule 3: Risk exceeds twin's configured max?             │
+│                  │   Rule 4: CRITICAL risk always escalates                  │
+│                  │   Rule 5: Cross-org requires contract_id                  │
+│                  │   Rule 6: EXECUTE intent confirmation rules               │
+│                  │                                                          │
+│                  │ Returns: DENY, ESCALATE, or None (=pass)                  │
+│                  │ Used by: policy.py (second gate check)                    │
+│                  │                                                          │
+│ contracts.py     │ CROSS-ORGANIZATION CONTRACTS (Phase 2).                 │
+│                  │                                                          │
+│                  │ OrgContractModel (org_contracts table):                    │
+│                  │   contract_id, org_a_id, org_b_id, status,                │
+│                  │   scope_grants, redaction_profile, expires_at              │
+│                  │                                                          │
+│                  │ Functions:                                                 │
+│                  │   validate_cross_org_contract() — checks active +         │
+│                  │     non-expired contract exists between two orgs           │
+│                  │   create_contract() — creates new contract                 │
+│                  │   get_active_contracts() — list contracts for an org       │
+│                  │                                                          │
+│                  │ Used by: admin_router.py (management), abac_rules.py      │
+│                  │                                                          │
+│ redaction.py     │ PAYLOAD REDACTION for cross-org messages (Phase 2).      │
+│                  │                                                          │
+│                  │ 3 profiles:                                                │
+│                  │   INTERNAL_FULL     — no redaction (same org)              │
+│                  │   CROSS_ORG_SAFE    — strips PII fields (email, phone,    │
+│                  │                       address, SSN, etc.) → "[REDACTED]"  │
+│                  │   REGULATED_MINIMAL — only keeps whitelisted metadata      │
+│                  │                       (intent, status, name, type)         │
+│                  │                                                          │
+│                  │ apply_redaction(payload, profile) → redacted copy          │
+│                  │                                                          │
+│                  │ Used by: router.py (step 7 — before saving cross-org)     │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  6. router/ — MESSAGE ROUTING, STORAGE & WEBSOCKET
+================================================================================
+
+The central nervous system. Handles all T2T message flow.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ router.py        │ THE MAIN T2T API. Three core endpoints:                 │
+│                  │                                                          │
+│                  │ POST /t2t/send (send_message):                            │
+│                  │   Full pipeline:                                           │
+│                  │   1.  Verify sender identity matches authenticated twin   │
+│                  │   1b. Ed25519 signature verification                      │
+│                  │   1c. Loop detection (Redis hop counter)                   │
+│                  │   2.  Idempotency check (Redis)                            │
+│                  │   3.  Sequence number validation                           │
+│                  │   4.  Schema validation (Pydantic)                         │
+│                  │   5.  Policy Gate 1 (RBAC + ABAC)                          │
+│                  │   6.  Handle DENY → 403, ESCALATE → create task            │
+│                  │   7.  ALLOW → apply cross-org redaction → save to DB       │
+│                  │   8.  WebSocket push to recipient (best-effort)            │
+│                  │   9.  Audit log                                            │
+│                  │                                                          │
+│                  │ GET /t2t/inbox/{twin_id} (get_inbox):                      │
+│                  │   - Verifies requester owns the inbox                      │
+│                  │   - Fetches all ROUTED messages for this twin              │
+│                  │   - Marks each as ACKNOWLEDGED                             │
+│                  │   - Returns list of InboxMessage                           │
+│                  │                                                          │
+│                  │ POST /t2t/reply (reply_message):                           │
+│                  │   - Handles CONFIRM / DECLINE / COMPLETE / FAIL replies    │
+│                  │   - CONFIRM triggers Policy Gate 2 → Orchestrator          │
+│                  │   - DECLINE → marks as CANCELLED                           │
+│                  │   - COMPLETE/FAIL → marks as COMPLETED/FAILED              │
+│                  │                                                          │
+│                  │ Used by: app.py (registered as t2t_router)                 │
+│                  │                                                          │
+│ store.py         │ DATA PERSISTENCE & REDIS OPERATIONS.                    │
+│                  │                                                          │
+│                  │ Functions:                                                 │
+│                  │   check_and_set_idempotency(key) — Redis set-if-not-exist │
+│                  │   get/store_idempotency_response() — cache responses       │
+│                  │   validate_sequence_no() — enforce message ordering        │
+│                  │   check_loop_detection() — Redis hop counter per thread    │
+│                  │   save_message() — persist MessageModel to PostgreSQL      │
+│                  │   get_message() — fetch by message_id                      │
+│                  │   fetch_inbox() — get ROUTED messages for a twin           │
+│                  │   transition_state() — enforce state machine transitions   │
+│                  │                                                          │
+│                  │ Used by: router.py (every endpoint)                        │
+│                  │                                                          │
+│ messages.py      │ MESSAGE ORM MODEL (messages table) + STATE MACHINE.     │
+│                  │                                                          │
+│                  │ MessageModel stores:                                       │
+│                  │   message_id, thread_id, protocol_version,                │
+│                  │   sender/recipient details, intent, scope,                │
+│                  │   payload_json, state, policy decision info,              │
+│                  │   timestamps, signature, nonce                            │
+│                  │                                                          │
+│                  │ VALID_TRANSITIONS dict enforces the state machine:         │
+│                  │   RECEIVED → VALIDATED → SCOPED → ROUTED →                │
+│                  │   ACKNOWLEDGED → DECIDED → EXECUTING → COMPLETED          │
+│                  │   (with FAILED/ESCALATED/CANCELLED as terminal states)     │
+│                  │                                                          │
+│                  │ can_transition(from, to) — checks if transition is valid   │
+│                  │                                                          │
+│                  │ Used by: store.py (persistence), router.py (queries)       │
+│                  │                                                          │
+│ websocket.py     │ WEBSOCKET REAL-TIME PUSH (Phase 2).                     │
+│                  │                                                          │
+│                  │ ConnectionManager class:                                   │
+│                  │   connect(twin_id, ws) — registers WebSocket connection    │
+│                  │   disconnect(twin_id) — removes connection                 │
+│                  │   push_message(twin_id, data) — sends JSON to connected   │
+│                  │     twin, returns False if not connected                   │
+│                  │                                                          │
+│                  │ WebSocket endpoint: GET ws://host/t2t/ws/{twin_id}         │
+│                  │   1. Client connects                                       │
+│                  │   2. Client sends {"token": "<api_key>"} within 10s        │
+│                  │   3. Server verifies token matches twin_id                 │
+│                  │   4. Server sends {"type": "auth_ok"}                      │
+│                  │   5. Server pushes messages as they arrive                 │
+│                  │   6. Client can send {"ping": true} for heartbeat          │
+│                  │                                                          │
+│                  │ Singleton: ws_manager (imported by router.py)              │
+│                  │ Used by: router.py (step 8 — best-effort push)            │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  7. orchestrator/ — WORKFLOW EXECUTION ENGINE
+================================================================================
+
+When a message is CONFIRMED, the orchestrator builds and executes a
+workflow plan using pluggable adapters.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ executor.py      │ MAIN ORCHESTRATOR. Runs workflow plans step-by-step.   │
+│                  │                                                          │
+│                  │ execute_workflow():                                        │
+│                  │   1. Builds a WorkflowPlan from the confirmed message     │
+│                  │   2. Executes each step using the appropriate adapter     │
+│                  │   3. On failure: triggers compensation (rollback)          │
+│                  │   4. On success: updates memory, logs audit events        │
+│                  │                                                          │
+│                  │ Used by: router.py (after CONFIRM reply passes Gate 2)     │
+│                  │                                                          │
+│ planner.py       │ WORKFLOW PLAN BUILDER. Translates intents into steps.   │
+│                  │                                                          │
+│                  │ build_plan() maps IntentType to ordered WorkflowSteps:    │
+│                  │   EXECUTE → [validate, execute, verify]                   │
+│                  │   REQUEST → [create_ticket, notify]                       │
+│                  │   etc.                                                     │
+│                  │                                                          │
+│                  │ Each WorkflowStep has:                                     │
+│                  │   step_id, adapter_name, action, params,                  │
+│                  │   compensation_action (for rollback)                       │
+│                  │                                                          │
+│                  │ Used by: executor.py                                       │
+│                  │                                                          │
+│ compensation.py  │ ROLLBACK HANDLER. If any workflow step fails,            │
+│                  │ this module executes compensation actions for all         │
+│                  │ previously completed steps IN REVERSE ORDER.              │
+│                  │                                                          │
+│                  │ compensate():                                              │
+│                  │   Iterates completed_steps in reverse → calls adapter     │
+│                  │   compensation action for each → logs results             │
+│                  │                                                          │
+│                  │ Used by: executor.py (on failure)                          │
+│                  │                                                          │
+│ adapters/        │ PLUGGABLE TOOL INTEGRATIONS                             │
+│ adapters/base.py │   BaseAdapter — abstract class all adapters implement   │
+│                  │     execute(action, params) → AdapterResult               │
+│                  │     compensate(action, params) → AdapterResult             │
+│                  │   register_adapter(name, adapter) — registry              │
+│                  │   get_adapter(name) — lookup                               │
+│                  │                                                          │
+│ adapters/        │   DummyAdapter — no-op adapter for testing. Logs calls   │
+│ dummy.py         │   and returns success. Auto-registers as "dummy".         │
+│                  │                                                          │
+│ adapters/        │   JiraAdapter — creates/updates/comments on Jira issues. │
+│ jira.py          │   Uses httpx with retry logic (tenacity).                 │
+│                  │   Auto-registers as "jira".                               │
+│                  │   Config via env: JIRA_BASE_URL, JIRA_EMAIL, JIRA_TOKEN   │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  8. audit/ — IMMUTABLE AUDIT LEDGER
+================================================================================
+
+Every action in the system is recorded. The audit trail is append-only.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ audit.py         │ AUDIT LOGGER. Core function: log_event()                │
+│                  │                                                          │
+│                  │ EventModel (audit_events table):                           │
+│                  │   event_id, event_type, twin_id, org_id, message_id,      │
+│                  │   thread_id, rule_id, result, reason, severity,           │
+│                  │   extra (JSON), timestamp                                 │
+│                  │                                                          │
+│                  │ Query helpers:                                             │
+│                  │   get_events_for_message() — all events for a message     │
+│                  │   get_events_for_twin() — all events for a twin           │
+│                  │   get_denied_events() — denied events for an org          │
+│                  │                                                          │
+│                  │ Used by: router.py, policy.py, executor.py,               │
+│                  │ escalation.py, auth.py — literally everywhere             │
+│                  │                                                          │
+│ taxonomy.py      │ EVENT TYPE AND SEVERITY ENUMERATIONS.                   │
+│                  │                                                          │
+│                  │ EventType enum (50+ types):                                │
+│                  │   MESSAGE_RECEIVED, MESSAGE_VALIDATED, MESSAGE_ROUTED,     │
+│                  │   POLICY_CHECK_GATE_1, POLICY_DECISION_ALLOW/DENY,        │
+│                  │   EXECUTION_STARTED/COMPLETED/FAILED,                     │
+│                  │   ESCALATION_CREATED/APPROVED/DENIED,                     │
+│                  │   SID_REVOKED, LOOP_DETECTED, etc.                        │
+│                  │                                                          │
+│                  │ Severity enum: DEBUG, INFO, WARNING, ERROR, CRITICAL       │
+│                  │                                                          │
+│                  │ Used by: audit.py, router.py, policy.py, executor.py       │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  9. notifications/ — NOTIFICATIONS & ESCALATION
+================================================================================
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ notifications.py │ NOTIFICATION SERVICE. Sends notifications to twins.     │
+│                  │                                                          │
+│                  │ NotificationModel (notifications table):                  │
+│                  │   notification_id, twin_id, type, title, body,            │
+│                  │   is_read, created_at                                     │
+│                  │                                                          │
+│                  │ send_notification() — creates + persists notification     │
+│                  │                                                          │
+│                  │ Endpoints:                                                 │
+│                  │   GET /notifications/{twin_id} — fetch notifications      │
+│                  │   PUT /notifications/{id}/read — mark as read             │
+│                  │                                                          │
+│ escalation.py    │ ESCALATION MANAGER. When policy says ESCALATE, this     │
+│                  │ creates a human-review task with SLA deadline.            │
+│                  │                                                          │
+│                  │ EscalationTaskModel (escalation_tasks table):              │
+│                  │   task_id, message_id, twin_id, org_id, reason,           │
+│                  │   status (PENDING/APPROVED/DENIED/EXPIRED),               │
+│                  │   sla_deadline, decided_at, decided_by                    │
+│                  │                                                          │
+│                  │ Functions:                                                 │
+│                  │   create_escalation_task() — creates pending task          │
+│                  │   approve/deny_escalation_task() — human decision          │
+│                  │   On APPROVE: resumes workflow via orchestrator            │
+│                  │                                                          │
+│                  │ Endpoints:                                                 │
+│                  │   GET  /escalation/pending/{org_id}                        │
+│                  │   POST /escalation/{task_id}/approve                       │
+│                  │   POST /escalation/{task_id}/deny                          │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  10. memory/ — CONTEXTUAL MEMORY (Redis)
+================================================================================
+
+Stores historical context in Redis for decision-making.
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ user.py          │ USER MEMORY. Stores per-twin action history in Redis.   │
+│                  │ Key: user_memory:{twin_id}                                │
+│                  │ Used by: orchestrator (after successful execution)         │
+│                  │                                                          │
+│ org.py           │ ORG MEMORY. Stores org-level shared event history.      │
+│                  │ Key: org_memory:{org_id}                                  │
+│                  │ Used by: orchestrator (post-execution updates)             │
+│                  │                                                          │
+│ decision.py      │ DECISION MEMORY. Records decisions made — who decided,  │
+│                  │ what intent, what outcome.                                │
+│                  │ Key: decision_memory:{thread_id}                           │
+│                  │ Used by: orchestrator (decision logging)                   │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  11. admin/ — ADMIN API
+================================================================================
+
+Protected by X-Admin-Secret header (from config.ADMIN_SECRET).
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ admin_router.py  │ ADMIN ENDPOINTS:                                        │
+│                  │                                                          │
+│                  │ POST /admin/twins/register                                │
+│                  │   Register a new twin with:                               │
+│                  │   twin_id, org_id, role, clearance, raw_api_key,          │
+│                  │   signing_public_key (optional), autonomy_level,          │
+│                  │   budget_threshold_usd, max_risk_level                    │
+│                  │                                                          │
+│                  │ GET /admin/health                                          │
+│                  │   System health + counts (twins, messages, events)         │
+│                  │                                                          │
+│                  │ GET /admin/audit/message/{message_id}                      │
+│                  │   Full audit trail for a specific message                  │
+│                  │                                                          │
+│                  │ GET /admin/audit/twin/{twin_id}                            │
+│                  │   All audit events for a twin                             │
+│                  │                                                          │
+│                  │ GET /admin/audit/denied/{org_id}                           │
+│                  │   All denied policy decisions for an org                   │
+│                  │                                                          │
+│                  │ POST /admin/contracts                                      │
+│                  │   Create a cross-org contract:                             │
+│                  │   org_a_id, org_b_id, redaction_profile, expires_at        │
+│                  │                                                          │
+│                  │ GET /admin/contracts/{org_id}                              │
+│                  │   List all active contracts for an org                     │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  12. tests/ — TEST SUITE
+================================================================================
+
+┌──────────────────┬─────────────────────────────────────────────────────────┐
+│ File             │ Purpose                                                 │
+├──────────────────┼─────────────────────────────────────────────────────────┤
+│ test_t2t.py      │ Integration tests using pytest + httpx AsyncClient.     │
+│                  │ Uses in-memory SQLite for isolation.                     │
+│                  │                                                          │
+│                  │ Test categories:                                           │
+│                  │   - Authentication (valid key, invalid key, revoked)       │
+│                  │   - Policy enforcement (RBAC deny, ABAC escalate)          │
+│                  │   - Message routing (send → inbox → reply flow)            │
+│                  │   - Audit trail verification                              │
+│                  │   - Escalation workflow                                    │
+│                  │                                                          │
+│                  │ Run: pytest tests/test_t2t.py -v                           │
+└──────────────────┴─────────────────────────────────────────────────────────┘
+
+
+================================================================================
+  13. API ENDPOINTS SUMMARY
+================================================================================
+
+  METHOD  ENDPOINT                            AUTH         PURPOSE
+  ──────  ──────────────────────────────────  ──────────   ──────────────────
+  POST    /t2t/send                           Bearer       Send T2T message
+  GET     /t2t/inbox/{twin_id}                Bearer       Fetch inbox
+  POST    /t2t/reply                          Bearer       Reply to message
+  WS      /t2t/ws/{twin_id}                   Token msg    Real-time push
+  GET     /notifications/{twin_id}            Bearer       Get notifications
+  PUT     /notifications/{id}/read            Bearer       Mark as read
+  GET     /escalation/pending/{org_id}        Bearer       Pending tasks
+  POST    /escalation/{task_id}/approve       Bearer       Approve escalation
+  POST    /escalation/{task_id}/deny          Bearer       Deny escalation
+  POST    /admin/twins/register               Admin-Secret Register twin
+  GET     /admin/health                       Admin-Secret System health
+  GET     /admin/audit/message/{message_id}   Admin-Secret Message audit
+  GET     /admin/audit/twin/{twin_id}         Admin-Secret Twin audit
+  GET     /admin/audit/denied/{org_id}        Admin-Secret Denied events
+  POST    /admin/contracts                    Admin-Secret Create contract
+  GET     /admin/contracts/{org_id}           Admin-Secret List contracts
+  GET     /health                             None         Health check
+  GET     /docs                               None         Swagger UI
+
+
+================================================================================
+  14. CONFIGURATION REFERENCE (.env)
+================================================================================
+
+  Variable                          Default                          Purpose
+  ────────────────────────────────  ───────────────────────────────  ─────────
+  DATABASE_URL                      postgresql+asyncpg://...          Async DB
+  DATABASE_URL_SYNC                 postgresql://...                  Sync DB
+  REDIS_URL                         redis://localhost:6379/0          Redis
+  APP_ENV                           development                      Env mode
+  APP_SECRET_KEY                    change-me                        JWT secret
+  LOG_LEVEL                         INFO                             Logging
+  ADMIN_SECRET                      admin-secret-change-in-prod      Admin key
+  IDEMPOTENCY_TTL_SECONDS           86400                            24h TTL
+  DEFAULT_ESCALATION_SLA_MINUTES    60                               1h SLA
+  WS_AUTH_TIMEOUT_SECONDS           10                               WS auth
+  LOOP_DETECTION_MAX_HOPS           20                               Max hops
+
+
+================================================================================
+  15. DATABASE TABLES
+================================================================================
+
+  Table               Model                  Module
+  ──────────────────  ──────────────────     ──────────────────
+  twins               TwinModel              auth/models.py
+  messages            MessageModel           router/messages.py
+  audit_events        EventModel             audit/audit.py
+  escalation_tasks    EscalationTaskModel    notifications/escalation.py
+  notifications       NotificationModel      notifications/notifications.py
+  org_contracts       OrgContractModel       policy/contracts.py
+
+
+================================================================================
+  END OF DOCUMENTATION
+================================================================================

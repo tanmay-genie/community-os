@@ -1,0 +1,839 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T2T System Flow — GENIE AI</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #050810;
+    --surface: #0c1020;
+    --card: #111827;
+    --border: #1e2d4a;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --accent3: #10b981;
+    --warn: #f59e0b;
+    --danger: #ef4444;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --glow: rgba(0, 212, 255, 0.15);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .page {
+    position: relative;
+    z-index: 1;
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    text-align: center;
+    margin-bottom: 60px;
+  }
+
+  .header-badge {
+    display: inline-block;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 3px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 4px 14px;
+    border-radius: 2px;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+  }
+
+  .header h1 {
+    font-size: clamp(28px, 5vw, 52px);
+    font-weight: 800;
+    background: linear-gradient(135deg, #fff 0%, var(--accent) 50%, var(--accent2) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+
+  .header p {
+    color: var(--muted);
+    font-size: 14px;
+    font-family: 'Space Mono', monospace;
+  }
+
+  /* Main pipeline label */
+  .pipeline-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-align: center;
+    margin-bottom: 32px;
+    text-transform: uppercase;
+  }
+
+  /* ---- MAIN FLOW ---- */
+  .main-flow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+    position: relative;
+  }
+
+  /* Node */
+  .node {
+    position: relative;
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 24px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    animation: fadeSlide 0.5s ease both;
+  }
+
+  .node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 24px var(--glow), 0 0 0 1px var(--accent);
+    transform: translateY(-2px);
+  }
+
+  .node.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 32px var(--glow);
+  }
+
+  @keyframes fadeSlide {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .node-num {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+  }
+
+  .node-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .node-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  .node-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .tag {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: 1px solid;
+    text-transform: uppercase;
+  }
+
+  .tag-blue { color: var(--accent); border-color: rgba(0,212,255,0.3); background: rgba(0,212,255,0.05); }
+  .tag-purple { color: #a78bfa; border-color: rgba(124,58,237,0.3); background: rgba(124,58,237,0.05); }
+  .tag-green { color: var(--accent3); border-color: rgba(16,185,129,0.3); background: rgba(16,185,129,0.05); }
+  .tag-yellow { color: var(--warn); border-color: rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); }
+  .tag-red { color: var(--danger); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.05); }
+
+  /* Arrow connector */
+  .arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 48px;
+    position: relative;
+  }
+
+  .arrow-line {
+    width: 2px;
+    flex: 1;
+    background: linear-gradient(to bottom, var(--accent), rgba(0,212,255,0.3));
+    position: relative;
+  }
+
+  .arrow-line::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: rgba(0,212,255,0.3);
+  }
+
+  .arrow-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 9px;
+    color: var(--accent);
+    letter-spacing: 1px;
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+  }
+
+  /* Branch section */
+  .branch-section {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .branch-header {
+    text-align: center;
+    margin-bottom: 12px;
+  }
+
+  .branch-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+
+  .branch-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0;
+  }
+
+  .branch-label {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    padding: 4px 12px;
+    border-radius: 2px;
+    margin-bottom: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .branch-label.ok { color: var(--accent3); background: rgba(16,185,129,0.1); border: 1px solid rgba(16,185,129,0.3); }
+  .branch-label.warn { color: var(--warn); background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); }
+  .branch-label.fail { color: var(--danger); background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); }
+
+  .branch-node {
+    width: 100%;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 18px;
+    transition: all 0.3s;
+  }
+
+  .branch-node:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 16px var(--glow);
+  }
+
+  .branch-node-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+
+  .branch-node-desc {
+    font-size: 11px;
+    color: var(--muted);
+    line-height: 1.4;
+  }
+
+  /* Section divider */
+  .section-divider {
+    width: 100%;
+    max-width: 900px;
+    margin: 32px auto;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .divider-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+  }
+
+  .divider-text {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* Bottom section: Twin Network */
+  .twin-network {
+    margin-top: 48px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 32px;
+  }
+
+  .twin-network h2 {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+
+  .twin-network p {
+    font-size: 12px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-bottom: 32px;
+  }
+
+  .twin-grid {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+    position: relative;
+  }
+
+  .twin-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 20px;
+    text-align: center;
+    transition: all 0.3s;
+    position: relative;
+    min-width: 140px;
+  }
+
+  .twin-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px var(--glow);
+    transform: translateY(-3px);
+  }
+
+  .twin-card.center {
+    border-color: var(--accent2);
+    box-shadow: 0 0 20px rgba(124,58,237,0.2);
+  }
+
+  .twin-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 800;
+    margin: 0 auto 8px;
+  }
+
+  .twin-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .twin-role {
+    font-size: 10px;
+    color: var(--muted);
+    font-family: 'Space Mono', monospace;
+    margin-top: 2px;
+  }
+
+  .twin-level {
+    font-size: 9px;
+    margin-top: 6px;
+    padding: 2px 6px;
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  .t2t-badge {
+    font-family: 'Space Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    border: 1px solid rgba(0,212,255,0.3);
+    padding: 2px 6px;
+    border-radius: 2px;
+    background: rgba(0,212,255,0.05);
+  }
+
+  /* Rule box */
+  .rule-box {
+    margin-top: 32px;
+    background: linear-gradient(135deg, rgba(0,212,255,0.05), rgba(124,58,237,0.05));
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+  }
+
+  .rule-box h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    font-family: 'Space Mono', monospace;
+    letter-spacing: 2px;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+  }
+
+  .rule-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .rule-item {
+    font-size: 11px;
+    font-family: 'Space Mono', monospace;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .rule-item::before {
+    content: '◆';
+    color: var(--accent);
+    font-size: 7px;
+  }
+
+  /* Tooltip */
+  .tooltip-info {
+    margin-top: 32px;
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    color: var(--muted);
+    text-align: center;
+    letter-spacing: 1px;
+  }
+
+  /* Animations */
+  .node:nth-child(1) { animation-delay: 0.1s; }
+  .node:nth-child(2) { animation-delay: 0.15s; }
+  .node:nth-child(3) { animation-delay: 0.2s; }
+
+  .pulse {
+    animation: pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
+  /* Responsive */
+  @media (max-width: 640px) {
+    .branch-row { grid-template-columns: 1fr; }
+    .node { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-badge">GENIE AI — Protocol v1.0</div>
+    <h1>Twin-to-Twin<br>Communication Flow</h1>
+    <p>Human → Twin → SID → Policy → Router → Target Twin → Orchestrator → Audit → Notify</p>
+  </div>
+
+  <!-- Main Pipeline -->
+  <div class="main-flow">
+
+    <!-- Step 1: Human User -->
+    <div class="node" style="animation-delay:0.05s">
+      <div class="node-num">STEP 01</div>
+      <div class="node-title">👤 Human User</div>
+      <div class="node-desc">Entry point. Human gives a command via voice, hotkey, UI action, or background context event.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Voice Input</span>
+        <span class="tag tag-blue">Hotkey</span>
+        <span class="tag tag-blue">UI Action</span>
+        <span class="tag tag-purple">Context Event</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Trigger</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 2: Personal Twin -->
+    <div class="node" style="animation-delay:0.1s">
+      <div class="node-num">STEP 02</div>
+      <div class="node-title">🤖 Personal Twin</div>
+      <div class="node-desc">Each human has one twin. It receives the command, wraps it into a structured intent message (T2T Envelope), and forwards to SID for verification.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Intent Creation</span>
+        <span class="tag tag-purple">Envelope Wrap</span>
+        <span class="tag tag-green">Human Counterpart</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Identity Check</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 3: SID Service -->
+    <div class="node" style="animation-delay:0.15s">
+      <div class="node-num">STEP 03</div>
+      <div class="node-title">🔐 SID Service</div>
+      <div class="node-desc">Validates twin identity, checks device trust, confirms clearance level. Issues a signed verification token. If invalid → BLOCKED immediately.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Identity Verify</span>
+        <span class="tag tag-blue">Device Trust</span>
+        <span class="tag tag-yellow">Clearance Check</span>
+        <span class="tag tag-red">Revocation Check</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Verified Token</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 4: Policy Engine (Gate 1) -->
+    <div class="node" style="animation-delay:0.2s; border-color: rgba(124,58,237,0.5);">
+      <div class="node-num">STEP 04 — GATE 1</div>
+      <div class="node-title">⚖️ Policy Engine (First Gate)</div>
+      <div class="node-desc">First major checkpoint. Checks: RBAC (role permission), ABAC (clearance + context), org boundary, budget threshold, risk level.</div>
+      <div class="node-tags">
+        <span class="tag tag-purple">RBAC</span>
+        <span class="tag tag-purple">ABAC</span>
+        <span class="tag tag-yellow">Budget Threshold</span>
+        <span class="tag tag-blue">Org Boundary</span>
+        <span class="tag tag-green">Redaction Profile</span>
+      </div>
+    </div>
+
+    <!-- Branch after Policy Engine -->
+    <div class="arrow">
+      <div class="arrow-label">Decision</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <div class="branch-section">
+      <div class="branch-row">
+        <!-- Allow branch -->
+        <div class="branch-col">
+          <div class="branch-label ok">✓ Role + Scope OK</div>
+          <div class="arrow"><div class="arrow-line"></div></div>
+          <div class="branch-node">
+            <div class="branch-node-title">📦 Create Message Envelope</div>
+            <div class="branch-node-desc">Builds the signed T2T JSON envelope: message_id, thread_id, from/to twin, intent type, payload, scope, security signature (ed25519), idempotency_key.</div>
+            <div class="node-tags" style="margin-top:8px">
+              <span class="tag tag-blue">Signed</span>
+              <span class="tag tag-green">Idempotent</span>
+            </div>
+          </div>
+        </div>
+        <!-- Escalate branch -->
+        <div class="branch-col">
+          <div class="branch-label warn">⚠ Threshold Exceeded</div>
+          <div class="arrow"><div class="arrow-line"></div></div>
+          <div class="branch-node" style="border-color: rgba(245,158,11,0.3);">
+            <div class="branch-node-title">🚨 Escalation Required</div>
+            <div class="branch-node-desc">Creates an escalation task with full context. Notifies human for approval. SLA timer starts. Approved → resumes flow. Denied → Audit Log: DENIED.</div>
+            <div class="node-tags" style="margin-top:8px">
+              <span class="tag tag-yellow">Human Approval</span>
+              <span class="tag tag-yellow">SLA Timer</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Route Message</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 5: Agent Router -->
+    <div class="node" style="animation-delay:0.25s">
+      <div class="node-num">STEP 05</div>
+      <div class="node-title">🔀 Agent Router / T2T Message Bus</div>
+      <div class="node-desc">Receives the signed envelope. Validates schema, enforces tenant boundary, rate limits, deduplication, thread ordering. Delivers to target twin via WebSocket or Inbox.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Schema Validation</span>
+        <span class="tag tag-blue">Tenant Boundary</span>
+        <span class="tag tag-green">Dedup + Retry</span>
+        <span class="tag tag-purple">Thread Order</span>
+        <span class="tag tag-red">Loop Detection</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Deliver</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 6: Target Human Twin -->
+    <div class="node" style="animation-delay:0.3s">
+      <div class="node-num">STEP 06</div>
+      <div class="node-title">🤖 Target Human Twin</div>
+      <div class="node-desc">Receives message. Acknowledges (ACK). Re-validates scope for its own context. May auto-confirm, negotiate, or escalate based on its own thresholds.</div>
+      <div class="node-tags">
+        <span class="tag tag-green">ACK</span>
+        <span class="tag tag-blue">Scope Re-Check</span>
+        <span class="tag tag-purple">CONFIRM / DECLINE</span>
+        <span class="tag tag-yellow">Escalate if needed</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Policy Re-Validate</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 7: Policy Re-Validation (Gate 2) -->
+    <div class="node" style="animation-delay:0.35s; border-color: rgba(124,58,237,0.5);">
+      <div class="node-num">STEP 07 — GATE 2</div>
+      <div class="node-title">⚖️ Policy Re-Validation (Second Gate)</div>
+      <div class="node-desc">Step-level policy check at the target side before execution begins. Ensures the action is still valid in the current context.</div>
+      <div class="node-tags">
+        <span class="tag tag-purple">Step-Level Auth</span>
+        <span class="tag tag-blue">Context Check</span>
+      </div>
+    </div>
+
+    <!-- Branch after Gate 2 -->
+    <div class="arrow">
+      <div class="arrow-label">Decision</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <div class="branch-section">
+      <div class="branch-row">
+        <div class="branch-col">
+          <div class="branch-label ok">✓ Allowed</div>
+          <div class="arrow"><div class="arrow-line"></div></div>
+          <div class="branch-node">
+            <div class="branch-node-title">⚙️ Orchestration Layer</div>
+            <div class="branch-node-desc">Converts confirmed intent into workflow steps. Plans execution. Acquires idempotency lock. Runs the Execution Engine.</div>
+            <div class="node-tags" style="margin-top:8px">
+              <span class="tag tag-green">Workflow Plan</span>
+              <span class="tag tag-blue">Idempotency Lock</span>
+            </div>
+          </div>
+        </div>
+        <div class="branch-col">
+          <div class="branch-label fail">✗ Denied</div>
+          <div class="arrow"><div class="arrow-line"></div></div>
+          <div class="branch-node" style="border-color: rgba(239,68,68,0.3);">
+            <div class="branch-node-title">📋 Audit Log: DENIED</div>
+            <div class="branch-node-desc">Logs denial event with rule ID, reason, twin ID, timestamp. Flow terminates. Notification sent to originating twin.</div>
+            <div class="node-tags" style="margin-top:8px">
+              <span class="tag tag-red">POLICY_DENIED</span>
+              <span class="tag tag-red">Immutable Log</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Execute</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 8: Execution Engine -->
+    <div class="node" style="animation-delay:0.4s">
+      <div class="node-num">STEP 08</div>
+      <div class="node-title">⚡ Execution Engine</div>
+      <div class="node-desc">Runs each workflow step using tool adapters. If an error occurs → triggers Rollback/Compensation Logic. On success → updates Memory Layer.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Jira / CRM / Docs</span>
+        <span class="tag tag-blue">Calendar</span>
+        <span class="tag tag-blue">Feature Flags</span>
+        <span class="tag tag-yellow">Rollback on Error</span>
+        <span class="tag tag-green">Memory Update</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Log Everything</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 9: Audit Log -->
+    <div class="node" style="animation-delay:0.45s; border-color: rgba(16,185,129,0.3);">
+      <div class="node-num">STEP 09</div>
+      <div class="node-title">📜 Audit Log Service</div>
+      <div class="node-desc">Immutable ledger. Every state transition is recorded: who, what, when, why, policy decision. Fully replayable. Legal holds supported.</div>
+      <div class="node-tags">
+        <span class="tag tag-green">Immutable</span>
+        <span class="tag tag-green">Replayable</span>
+        <span class="tag tag-blue">Non-Repudiation</span>
+        <span class="tag tag-purple">Compliance</span>
+      </div>
+    </div>
+
+    <div class="arrow">
+      <div class="arrow-label">Notify</div>
+      <div class="arrow-line"></div>
+    </div>
+
+    <!-- Step 10: Notification Service -->
+    <div class="node" style="animation-delay:0.5s">
+      <div class="node-num">STEP 10</div>
+      <div class="node-title">🔔 Notification Service</div>
+      <div class="node-desc">Sends structured notifications: informational updates, action-required alerts, escalation notices, SLA breach warnings to relevant twins/humans.</div>
+      <div class="node-tags">
+        <span class="tag tag-blue">Informational</span>
+        <span class="tag tag-yellow">Action Required</span>
+        <span class="tag tag-red">Escalation</span>
+        <span class="tag tag-red">SLA Breach</span>
+      </div>
+    </div>
+
+  </div><!-- end main-flow -->
+
+  <!-- Twin Network Section -->
+  <div class="section-divider">
+    <div class="divider-line"></div>
+    <div class="divider-text">Internal Twin Network Topology</div>
+    <div class="divider-line"></div>
+  </div>
+
+  <div class="twin-network">
+    <h2>Twin Network — GENIE AI</h2>
+    <p>All communication passes through T2T Router. No direct twin-to-twin bypass exists.</p>
+
+    <div class="twin-grid">
+      <div class="twin-card center">
+        <div class="twin-avatar" style="background: rgba(124,58,237,0.2); color: #a78bfa;">B</div>
+        <div class="twin-name">bilal_exec_twin</div>
+        <div class="twin-role">Founder / CEO</div>
+        <div class="twin-level tag tag-purple" style="display:inline-block; margin-top:6px;">Semi-Autonomous</div>
+      </div>
+
+      <div class="twin-card">
+        <div class="twin-avatar" style="background: rgba(0,212,255,0.1); color: var(--accent);">S</div>
+        <div class="twin-name">syed_product_twin</div>
+        <div class="twin-role">Product</div>
+        <div class="twin-level tag tag-blue" style="display:inline-block; margin-top:6px;">Advisory + Exec</div>
+      </div>
+
+      <div class="twin-card">
+        <div class="twin-avatar" style="background: rgba(16,185,129,0.1); color: var(--accent3);">R</div>
+        <div class="twin-name">ritwik_eng_twin</div>
+        <div class="twin-role">Engineering Lead</div>
+        <div class="twin-level tag tag-green" style="display:inline-block; margin-top:6px;">Semi-Autonomous</div>
+      </div>
+
+      <div class="twin-card">
+        <div class="twin-avatar" style="background: rgba(239,68,68,0.1); color: var(--danger);">Y</div>
+        <div class="twin-name">yash_security_twin</div>
+        <div class="twin-role">Security</div>
+        <div class="twin-level tag tag-red" style="display:inline-block; margin-top:6px;">Advisory + Enforce</div>
+      </div>
+
+      <div class="twin-card">
+        <div class="twin-avatar" style="background: rgba(245,158,11,0.1); color: var(--warn);">A</div>
+        <div class="twin-name">arfa_ai_twin</div>
+        <div class="twin-role">AI</div>
+        <div class="twin-level tag tag-yellow" style="display:inline-block; margin-top:6px;">Threshold-Limited</div>
+      </div>
+
+      <div class="twin-card">
+        <div class="twin-avatar" style="background: rgba(0,212,255,0.08); color: #7dd3fc;">A</div>
+        <div class="twin-name">arun_sales_twin</div>
+        <div class="twin-role">Sales</div>
+        <div class="twin-level tag tag-blue" style="display:inline-block; margin-top:6px;">Semi-Autonomous</div>
+      </div>
+    </div>
+
+    <!-- The Golden Rule -->
+    <div class="rule-box">
+      <h3>⚡ The Golden Rule — No Bypass</h3>
+      <div class="rule-items">
+        <div class="rule-item">Event-driven</div>
+        <div class="rule-item">Policy-gated</div>
+        <div class="rule-item">Tenant-aware</div>
+        <div class="rule-item">Idempotent</div>
+        <div class="rule-item">Auditable</div>
+        <div class="rule-item">Reversible</div>
+        <div class="rule-item">Deterministic</div>
+        <div class="rule-item">Every message: Policy → Router → Audit</div>
+      </div>
+    </div>
+
+    <div class="tooltip-info">
+      Click any node to explore · Hover for glow effect · Twins are policy-bound workflow coordinators — NOT chatbots
+    </div>
+  </div>
+
+</div>
+
+<script>
+  // Make nodes interactive
+  document.querySelectorAll('.node, .branch-node').forEach(node => {
+    node.addEventListener('click', () => {
+      document.querySelectorAll('.node.active').forEach(n => n.classList.remove('active'));
+      node.classList.toggle('active');
+    });
+  });
+
+  // Staggered entrance animation for twin cards
+  document.querySelectorAll('.twin-card').forEach((card, i) => {
+    card.style.animationDelay = `${0.6 + i * 0.08}s`;
+    card.style.animation = 'fadeSlide 0.5s ease both';
+  });
+</script>
+</body>
+</html>
