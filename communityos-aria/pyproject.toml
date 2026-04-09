@@ -1,0 +1,29 @@
+[project]
+name = "communityos-aria"
+version = "1.0.0"
+description = "ARIA — CommunityOS AI Assistant (Voice + Chat, Member + Admin)"
+requires-python = ">=3.11"
+dependencies = [
+    "fastmcp",
+    "fastapi",
+    "uvicorn",
+    "httpx",
+    "redis[asyncio]",
+    "python-dotenv",
+    "pydantic",
+    "livekit-agents[openai,sarvam,silero]>=1.5.1",
+    "livekit-plugins-google>=1.5.1",
+    "sqlalchemy[asyncio]",
+    "asyncpg",
+]
+
+[project.scripts]
+aria         = "server:main"
+aria-voice   = "agent_aria:dev"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["aria"]

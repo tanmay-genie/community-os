@@ -1,0 +1,32 @@
+# Environments
+.env
+.env.local
+.venv
+venv/
+ENV/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.sqlite3
+
+# Node modules
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Next.js / build output
+.next/
+out/
+build/
+dist/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs and Editors
+.idea/
+.vscode/
+*.swp
+*.swo

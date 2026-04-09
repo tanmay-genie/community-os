@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ARIA — CommunityOS AI Assistant</title>
+  <meta name="description" content="ARIA Dashboard — Voice + Chat AI for housing societies" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Animated Background -->
+  <div class="bg-mesh"></div>
+  <div class="bg-glow bg-glow-1"></div>
+  <div class="bg-glow bg-glow-2"></div>
+  <div class="bg-glow bg-glow-3"></div>
+
+  <!-- App Shell -->
+  <div id="app">
+
+    <!-- Sidebar (hidden on mobile, replaced by bottom nav) -->
+    <aside id="sidebar">
+      <div class="sidebar-brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="url(#g1)" stroke-width="2.5"/><path d="M16 8v8l5.5 3" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round"/><defs><linearGradient id="g1" x1="0" y1="0" x2="32" y2="32"><stop stop-color="#a78bfa"/><stop offset="1" stop-color="#38bdf8"/></linearGradient></defs></svg>
+        </div>
+        <div>
+          <h1 class="brand-title">ARIA</h1>
+          <p class="brand-sub">CommunityOS Assistant</p>
+        </div>
+      </div>
+
+      <!-- Connection Status -->
+      <div id="connection-status" class="conn-status conn-offline">
+        <span class="conn-dot"></span>
+        <span class="conn-text">Offline</span>
+      </div>
+
+      <!-- Theme Toggle -->
+      <div class="sidebar-toggle-row">
+        <div class="toggle-card">
+          <label class="toggle-label" data-i18n="theme">Theme</label>
+          <button type="button" id="theme-toggle" class="theme-btn" aria-label="Toggle theme">
+            <svg class="icon-sun" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clip-rule="evenodd"/></svg>
+            <svg class="icon-moon" viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"/></svg>
+          </button>
+        </div>
+        <div class="toggle-card">
+          <label class="toggle-label" data-i18n="language">Language</label>
+          <button type="button" id="lang-toggle" class="lang-btn" aria-label="Toggle language">EN</button>
+        </div>
+      </div>
+
+      <!-- Role Switch -->
+      <div class="role-switch-card">
+        <label class="role-label" data-i18n="mode">Mode</label>
+        <div class="role-toggle" id="role-toggle">
+          <button type="button" class="role-btn active" data-role="member">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path d="M10 10a4 4 0 100-8 4 4 0 000 8zm-7 8a7 7 0 0114 0H3z"/></svg>
+            <span data-i18n="member">Member</span>
+          </button>
+          <button type="button" class="role-btn" data-role="admin">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/></svg>
+            <span data-i18n="admin">Admin</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Config -->
+      <div class="config-section">
+        <h3 class="config-title" data-i18n="configuration">Configuration</h3>
+        <div class="config-field">
+          <label for="cfg-twin">Twin ID</label>
+          <input type="text" id="cfg-twin" value="tanmay_resident" />
+        </div>
+        <div class="config-field">
+          <label for="cfg-org">Org ID</label>
+          <input type="text" id="cfg-org" value="SUNRISE_SOCIETY" />
+        </div>
+        <div class="config-field">
+          <label for="cfg-key">API Key</label>
+          <input type="text" id="cfg-key" value="resident-api-key" />
+        </div>
+        <div class="config-field">
+          <label for="cfg-url">Chat API URL</label>
+          <input type="text" id="cfg-url" value="http://localhost:8080" />
+        </div>
+      </div>
+
+      <!-- Health Check -->
+      <button type="button" id="btn-health" class="sidebar-action-btn">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clip-rule="evenodd"/></svg>
+        <span data-i18n="checkHealth">Check Health</span>
+      </button>
+
+      <!-- Clear -->
+      <button type="button" id="btn-clear" class="sidebar-action-btn btn-danger">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        <span data-i18n="clearChat">Clear Chat</span>
+      </button>
+
+      <!-- Export -->
+      <button type="button" id="btn-export" class="sidebar-action-btn">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="16" height="16"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+        <span data-i18n="exportReport">Export Report</span>
+      </button>
+
+      <div class="sidebar-footer">
+        <p>CommunityOS &copy; 2026</p>
+      </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main id="main-content">
+
+      <!-- Top Bar -->
+      <header id="topbar">
+        <button type="button" id="sidebar-toggle" aria-label="Toggle sidebar">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        </button>
+        <div class="topbar-title">
+          <span id="topbar-role-badge" class="role-badge role-member">Member</span>
+          <h2>ARIA Dashboard</h2>
+        </div>
+      </header>
+
+      <!-- Scrollable content area -->
+      <div id="content-scroll">
+
+        <!-- Admin Dashboard Cards (visible only in admin mode) -->
+        <section id="admin-dashboard" class="hidden">
+          <h3 class="section-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zm6-4a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zm6-3a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/></svg>
+            <span data-i18n="societyInsights">Society Insights</span>
+          </h3>
+          <div class="stats-grid">
+            <div class="stat-card stat-blue">
+              <div class="stat-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22"><path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/><path fill-rule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clip-rule="evenodd"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">247</span>
+                <span class="stat-label" data-i18n="totalTickets">Total Tickets</span>
+              </div>
+            </div>
+            <div class="stat-card stat-yellow">
+              <div class="stat-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">12</span>
+                <span class="stat-label" data-i18n="pendingEscalations">Pending Escalations</span>
+              </div>
+            </div>
+            <div class="stat-card stat-green">
+              <div class="stat-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">2.3 hrs</span>
+                <span class="stat-label" data-i18n="avgResponseTime">Avg Response Time</span>
+              </div>
+            </div>
+            <div class="stat-card stat-purple">
+              <div class="stat-icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="22" height="22"><path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z"/></svg>
+              </div>
+              <div class="stat-info">
+                <span class="stat-value">156</span>
+                <span class="stat-label" data-i18n="activeResidents">Active Residents</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Analytics Bar Chart -->
+          <div class="analytics-section">
+            <h4 class="analytics-title" data-i18n="ticketsThisWeek">Tickets This Week</h4>
+            <div class="bar-chart">
+              <div class="bar-item"><div class="bar" style="--bar-height: 65%"><span class="bar-value">23</span></div><span class="bar-label">Mon</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 85%"><span class="bar-value">31</span></div><span class="bar-label">Tue</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 50%"><span class="bar-value">18</span></div><span class="bar-label">Wed</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 70%"><span class="bar-value">25</span></div><span class="bar-label">Thu</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 100%"><span class="bar-value">36</span></div><span class="bar-label">Fri</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 40%"><span class="bar-value">14</span></div><span class="bar-label">Sat</span></div>
+              <div class="bar-item"><div class="bar" style="--bar-height: 25%"><span class="bar-value">9</span></div><span class="bar-label">Sun</span></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Escalation Queue (admin only) -->
+        <section id="escalation-queue" class="hidden">
+          <h3 class="section-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92z" clip-rule="evenodd"/></svg>
+            <span data-i18n="escalationQueue">Escalation Queue</span>
+            <label class="bulk-select-label"><input type="checkbox" id="bulk-select-all" /> <span data-i18n="selectAll">Select All</span></label>
+          </h3>
+          <div id="escalation-cards" class="escalation-grid"></div>
+          <div class="bulk-actions hidden" id="bulk-actions">
+            <button type="button" class="bulk-btn bulk-approve" id="bulk-approve-btn" data-i18n="bulkApprove">Bulk Approve</button>
+            <button type="button" class="bulk-btn bulk-deny" id="bulk-deny-btn" data-i18n="bulkDeny">Bulk Deny</button>
+          </div>
+        </section>
+
+        <!-- Content Moderation (admin only) -->
+        <section id="moderation-panel" class="hidden">
+          <h3 class="section-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M10 1.944A11.954 11.954 0 012.166 5C2.056 5.649 2 6.319 2 7c0 5.225 3.34 9.67 8 11.317C14.66 16.67 18 12.225 18 7c0-.682-.057-1.35-.166-2.001A11.954 11.954 0 0110 1.944zM11 14a1 1 0 11-2 0 1 1 0 012 0zm0-7a1 1 0 10-2 0v3a1 1 0 102 0V7z" clip-rule="evenodd"/></svg>
+            <span data-i18n="contentModeration">Content Moderation</span>
+          </h3>
+          <div id="moderation-cards" class="moderation-grid"></div>
+        </section>
+
+        <!-- Quick Actions -->
+        <section id="quick-actions">
+          <h3 class="section-title">
+            <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z"/></svg>
+            <span data-i18n="quickActions">Quick Actions</span>
+          </h3>
+          <div class="actions-grid" id="actions-grid">
+            <!-- Skeleton cards shown before render -->
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+            <div class="action-card skeleton-card"><div class="skeleton-icon"></div><div class="skeleton-line w60"></div><div class="skeleton-line w80"></div></div>
+          </div>
+        </section>
+
+        <!-- Chat Area -->
+        <section id="chat-section">
+          <div id="chat-messages">
+            <div class="msg msg-system">
+              <div class="msg-avatar system-avatar">
+                <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="url(#g1)" stroke-width="2"/><path d="M16 8v8l5.5 3" stroke="url(#g1)" stroke-width="2" stroke-linecap="round"/></svg>
+              </div>
+              <div class="msg-body">
+                <div class="msg-meta">
+                  <span class="msg-name">ARIA</span>
+                  <span class="msg-time"></span>
+                </div>
+                <div class="msg-content"><p>Hi! I'm ARIA, your society assistant. Send me a message or click a quick action above to get started.</p></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chat Input -->
+          <form id="chat-form">
+            <div class="input-wrapper">
+              <button type="button" id="btn-attach" class="input-icon-btn" aria-label="Attach file">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M8 4a3 3 0 00-3 3v4a5 5 0 0010 0V7a1 1 0 112 0v4a7 7 0 11-14 0V7a5 5 0 0110 0v4a3 3 0 11-6 0V7a1 1 0 012 0v4a1 1 0 102 0V7a3 3 0 00-3-3z" clip-rule="evenodd"/></svg>
+              </button>
+              <input type="file" id="file-input" accept="image/*" class="hidden-input" />
+              <input type="text" id="chat-input" placeholder="Ask ARIA anything..." autocomplete="off" />
+              <button type="button" id="btn-voice" class="input-icon-btn" aria-label="Voice input">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="18" height="18"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+              </button>
+              <button type="submit" id="btn-send" aria-label="Send">
+                <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"/></svg>
+              </button>
+            </div>
+            <!-- Image preview area -->
+            <div id="image-preview" class="image-preview hidden"></div>
+          </form>
+        </section>
+
+      </div><!-- /content-scroll -->
+    </main>
+  </div>
+
+  <!-- Announcement Editor Modal -->
+  <div id="announcement-modal" class="modal-overlay hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 data-i18n="editAnnouncement">Edit Announcement</h3>
+        <button type="button" id="modal-close" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <label for="announcement-text" class="sr-only">Announcement text</label>
+      <textarea id="announcement-text" class="modal-textarea" rows="8" placeholder="ARIA-generated announcement will appear here..."></textarea>
+      <div class="modal-actions">
+        <button type="button" id="modal-cancel" class="modal-btn modal-btn-secondary" data-i18n="cancel">Cancel</button>
+        <button type="button" id="modal-publish" class="modal-btn modal-btn-primary" data-i18n="publish">Publish</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Mobile Bottom Nav -->
+  <nav id="mobile-nav" class="mobile-nav">
+    <button type="button" class="mobile-nav-btn active" data-tab="chat">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zm-4 0H9v2h2V9z" clip-rule="evenodd"/></svg>
+      <span data-i18n="chat">Chat</span>
+    </button>
+    <button type="button" class="mobile-nav-btn" data-tab="actions">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.381z"/></svg>
+      <span data-i18n="actions">Actions</span>
+    </button>
+    <button type="button" class="mobile-nav-btn" data-tab="settings">
+      <svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
+      <span data-i18n="settings">Settings</span>
+    </button>
+  </nav>
+
+  <!-- Mobile Settings Panel -->
+  <div id="mobile-settings" class="mobile-settings-panel hidden">
+    <div class="mobile-settings-header">
+      <h3 data-i18n="settings">Settings</h3>
+      <button type="button" id="mobile-settings-close" class="modal-close-btn">&times;</button>
+    </div>
+    <div class="mobile-settings-body" id="mobile-settings-body">
+      <!-- Populated by JS -->
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
