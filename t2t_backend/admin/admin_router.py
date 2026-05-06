@@ -1,13 +1,15 @@
 """
 admin/admin_router.py — Admin endpoints.
 Twin registration, audit queries, system health.
-Protect these with an admin-only secret header in production.
 """
 from __future__ import annotations
 
+import hmac
 import logging
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,9 +21,23 @@ from config import settings
 logger = logging.getLogger(__name__)
 admin_router = APIRouter(prefix="/admin", tags=["Admin"])
 
+_failed_attempts: dict[str, list[float]] = defaultdict(list)
+_MAX_ATTEMPTS = 5
+_WINDOW_SECONDS = 300
 
-def _require_admin(x_admin_secret: str = Header(...)) -> None:
-    if x_admin_secret != settings.ADMIN_SECRET:
+
+def _require_admin(request: Request, x_admin_secret: str = Header(...)) -> None:
+    client_ip = request.client.host if request.client else "unknown"
+
+    attempts = _failed_attempts[client_ip]
+    cutoff = time.monotonic() - _WINDOW_SECONDS
+    _failed_attempts[client_ip] = [t for t in attempts if t > cutoff]
+
+    if len(_failed_attempts[client_ip]) >= _MAX_ATTEMPTS:
+        raise HTTPException(status_code=429, detail="Too many failed attempts")
+
+    if not hmac.compare_digest(x_admin_secret, settings.ADMIN_SECRET):
+        _failed_attempts[client_ip].append(time.monotonic())
         raise HTTPException(status_code=403, detail="Admin access denied")
 
 

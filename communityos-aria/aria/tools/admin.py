@@ -8,9 +8,11 @@ Admin tools give the property manager AI-powered control:
   - Auto-generate announcements
 """
 
-import httpx
+import os
+
 from aria.t2t_client import t2t
-from aria.config import settings
+
+ADMIN_API_KEY = os.getenv("TWIN_KEY_OPS", "ops-key-001")
 
 
 def register(mcp):
@@ -59,35 +61,11 @@ def register(mcp):
         Detect complaint patterns across the society.
         Call when admin says: 'Which issues keep coming up?', 'Any recurring problems?',
         'Ticket trends', 'What are residents complaining about most?'
+        Note: ticket trend analysis is not yet wired up post-T2T extraction.
         """
-        try:
-            async with httpx.AsyncClient(timeout=10) as client:
-                resp = await client.get(
-                    f"{settings.T2T_BASE_URL}/communityos/tickets/trends",
-                    params={"org_id": org_id},
-                    headers={"X-Admin-Secret": settings.T2T_ADMIN_SECRET},
-                )
-                resp.raise_for_status()
-                data = resp.json()
-
-            trends = data.get("trends", [])
-            if not trends:
-                return "No significant complaint patterns detected right now."
-
-            lines = ["Ticket trends:"]
-            for tr in trends[:5]:
-                lines.append(
-                    f"• {tr['category']}: {tr['count']} tickets "
-                    f"({tr.get('location', 'various areas')})"
-                )
-            if trends:
-                top = trends[0]
-                lines.append(
-                    f"\nTop concern: {top['category']} — consider proactive action."
-                )
-            return "\n".join(lines)
-        except Exception:
-            return "Ticket trend analysis unavailable right now."
+        # TODO(communityos-aria): wire up an in-process trend service over the
+        # local society DB. Until then, fail soft with a friendly message.
+        return "Ticket trend analysis unavailable right now."
 
     # ── ESCALATIONS ───────────────────────────────────────────────────────
 
@@ -99,7 +77,7 @@ def register(mcp):
         'Show escalations', 'What's in the queue?'
         """
         try:
-            data = await t2t.get_pending_escalations(org_id=org_id)
+            data = await t2t.get_pending_escalations(admin_api_key=ADMIN_API_KEY)
             tasks = data if isinstance(data, list) else data.get("tasks", [])
 
             if not tasks:
@@ -109,8 +87,8 @@ def register(mcp):
             for task in tasks[:5]:
                 sla = task.get("sla_remaining_minutes", "?")
                 lines.append(
-                    f"• [{task.get('risk_level','?')}] {task.get('reason','?')} "
-                    f"— {sla} min SLA remaining (ID: {task.get('task_id','')})"
+                    f"[{task.get('risk_level','?')}] {task.get('reason','?')} "
+                    f"-- {sla} min SLA remaining (ID: {task.get('task_id','')})"
                 )
             return "\n".join(lines)
         except Exception:
@@ -119,12 +97,12 @@ def register(mcp):
     @mcp.tool()
     async def approve_escalation(task_id: str, reason: str = "Approved by admin") -> str:
         """
-        Approve a pending escalation — resumes the workflow.
+        Approve a pending escalation -- resumes the workflow.
         Call when admin says: 'Approve that', 'Green light it', 'Approve task <id>'.
         task_id: the escalation task ID from get_pending_escalations.
         """
         try:
-            await t2t.approve_escalation(task_id=task_id, reason=reason)
+            await t2t.approve_escalation(admin_api_key=ADMIN_API_KEY, task_id=task_id, reason=reason)
             return f"Escalation approved. Workflow resumed. Task ID: {task_id}"
         except Exception:
             return f"Couldn't approve escalation {task_id}. Please try again."
@@ -132,12 +110,12 @@ def register(mcp):
     @mcp.tool()
     async def deny_escalation(task_id: str, reason: str = "Denied by admin") -> str:
         """
-        Deny a pending escalation — terminates the workflow.
+        Deny a pending escalation -- terminates the workflow.
         Call when admin says: 'Deny that', 'Reject it', 'Deny task <id>'.
         task_id: the escalation task ID from get_pending_escalations.
         """
         try:
-            await t2t.deny_escalation(task_id=task_id, reason=reason)
+            await t2t.deny_escalation(admin_api_key=ADMIN_API_KEY, task_id=task_id, reason=reason)
             return f"Escalation denied. Workflow terminated. Task ID: {task_id}"
         except Exception:
             return f"Couldn't deny escalation {task_id}. Please try again."

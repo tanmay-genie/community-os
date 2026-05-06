@@ -15,6 +15,23 @@ dependencies = [
     "livekit-plugins-google>=1.5.1",
     "sqlalchemy[asyncio]",
     "asyncpg",
+    "aiosqlite",
+    "alembic",
+    "google-generativeai",
+    "PyJWT",
+    "slowapi",
+    "prometheus-client",
+    "structlog",
+]
+
+[project.optional-dependencies]
+ai = [
+    "sentence-transformers>=2.2.0",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "ruff",
 ]
 
 [project.scripts]

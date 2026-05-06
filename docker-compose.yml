@@ -1,0 +1,58 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: communityos
+      POSTGRES_PASSWORD: communityos
+      POSTGRES_DB: communityos
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U communityos"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  t2t-backend:
+    build:
+      context: ./t2t_backend
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://communityos:communityos@postgres:5432/communityos
+      DATABASE_URL_SYNC: postgresql://communityos:communityos@postgres:5432/communityos
+      REDIS_URL: redis://redis:6379/0
+      APP_ENV: development
+      ADMIN_SECRET: dev-admin-secret
+
+  aria:
+    build:
+      context: ./communityos-aria
+    ports:
+      - "8080:8080"
+    depends_on:
+      - t2t-backend
+    environment:
+      T2T_BASE_URL: http://t2t-backend:8000
+      T2T_ADMIN_SECRET: dev-admin-secret
+      APP_ENV: development
+
+volumes:
+  pgdata:

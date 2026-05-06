@@ -13,7 +13,69 @@ const state = {
   messages: JSON.parse(localStorage.getItem('aria-messages') || '[]'),
   pendingImage: null,
   isRecording: false,
+  token: localStorage.getItem('aria-token') || '',
+  tokenExp: Number(localStorage.getItem('aria-token-exp') || 0),
 };
+
+// ── Auth (Bearer JWT) ─────────────────────────────────────────────────
+function genRequestId() {
+  return (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2)).slice(0, 32);
+}
+
+function isTokenValid() {
+  return state.token && state.tokenExp > Math.floor(Date.now() / 1000) + 30;
+}
+
+async function login(baseUrl, twinId, apiKey, orgId) {
+  const resp = await fetch(`${baseUrl}/aria/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ twin_id: twinId, api_key: apiKey, org_id: orgId }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || `login failed (${resp.status})`);
+  }
+  const data = await resp.json();
+  state.token = data.access_token;
+  state.tokenExp = Math.floor(Date.now() / 1000) + (data.expires_in || 86400);
+  localStorage.setItem('aria-token', state.token);
+  localStorage.setItem('aria-token-exp', String(state.tokenExp));
+  return data;
+}
+
+function clearToken() {
+  state.token = '';
+  state.tokenExp = 0;
+  localStorage.removeItem('aria-token');
+  localStorage.removeItem('aria-token-exp');
+}
+
+async function ensureToken(baseUrl, twinId, apiKey, orgId) {
+  if (isTokenValid()) return state.token;
+  await login(baseUrl, twinId, apiKey, orgId);
+  return state.token;
+}
+
+async function authFetch(url, options = {}, baseUrl, twinId, apiKey, orgId) {
+  const token = await ensureToken(baseUrl, twinId, apiKey, orgId);
+  const headers = {
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${token}`,
+    'X-Request-ID': genRequestId(),
+    ...(options.headers || {}),
+  };
+  let resp = await fetch(url, { ...options, headers });
+  if (resp.status === 401) {
+    clearToken();
+    const fresh = await ensureToken(baseUrl, twinId, apiKey, orgId);
+    resp = await fetch(url, {
+      ...options,
+      headers: { ...headers, 'Authorization': `Bearer ${fresh}` },
+    });
+  }
+  return resp;
+}
 
 // ── i18n ──────────────────────────────────────────────────────────────
 const I18N = {
@@ -102,6 +164,235 @@ function playNotificationSound() {
   } catch (e) { /* silent fail */ }
 }
 
+// ── Structured Payload Parser (AMENITIES_LIST / BOOKING_RESULT) ──────
+// ARIA's chat reply may begin with a control prefix that the frontend
+// renders as rich cards. The prefix has the shape:
+//   AMENITIES_LIST::{json}\n\n<caption>
+//   BOOKING_RESULT::{json}\n\n<caption>
+// Anything that doesn't match falls through to the normal markdown path.
+function extractStructured(text) {
+  if (!text) return { kind: null, data: null, caption: text || '' };
+  const PREFIXES = ['AMENITIES_LIST::', 'BOOKING_RESULT::'];
+  for (const p of PREFIXES) {
+    if (text.startsWith(p)) {
+      // The JSON is on the same line, ending at the first newline OR end of string.
+      const newlineIdx = text.indexOf('\n');
+      const jsonStr = newlineIdx === -1 ? text.slice(p.length) : text.slice(p.length, newlineIdx);
+      const caption = newlineIdx === -1 ? '' : text.slice(newlineIdx + 1).trim();
+      try {
+        const data = JSON.parse(jsonStr);
+        return { kind: p === 'AMENITIES_LIST::' ? 'amenities' : 'booking', data, caption };
+      } catch (err) {
+        console.warn('Failed to parse structured payload:', err, jsonStr.slice(0, 120));
+        return { kind: null, data: null, caption: text };
+      }
+    }
+  }
+  return { kind: null, data: null, caption: text };
+}
+
+// Inline SVG icons keyed by amenity type. Falls back to a neutral building icon.
+const AMENITY_ICONS = {
+  gym:             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5h11v11h-11z"/><path d="M3 9v6M21 9v6M6.5 12h11"/></svg>',
+  pool:            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 17c2 0 2-2 5-2s3 2 5 2 3-2 5-2 3 2 5 2"/><path d="M2 13c2 0 2-2 5-2s3 2 5 2 3-2 5-2 3 2 5 2"/><path d="M8 4h8v9H8z"/></svg>',
+  court_badminton: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><path d="M8 8l12 12M9 5l5 5"/></svg>',
+  court_tennis:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3.5 12c2.5-3 7-4 8.5-4s6 1 8.5 4"/><path d="M3.5 12c2.5 3 7 4 8.5 4s6-1 8.5-4"/></svg>',
+  hall:            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h2v3H9zm4 0h2v3h-2zM9 14h2v3H9zm4 0h2v3h-2z"/></svg>',
+  studio:          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 6 8 9 12 13c4-4 4-7 0-11z"/><path d="M5 22c0-4 3-7 7-7s7 3 7 7"/></svg>',
+  spa:             '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s-3-4-3-9c0-3 1.5-5 3-5s3 2 3 5c0 5-3 9-3 9z"/><path d="M5 13c2-1 4 0 5 2M19 13c-2-1-4 0-5 2"/></svg>',
+  library:         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h6a3 3 0 013 3v13a2 2 0 00-2-2H4zM20 4h-6a3 3 0 00-3 3v13a2 2 0 012-2h7z"/></svg>',
+  clubhouse:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.5 5 5.5.8-4 4 1 5.5L12 14.8l-5 2.5 1-5.5-4-4 5.5-.8z"/></svg>',
+  other:           '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21h18M5 21V8l7-5 7 5v13"/></svg>',
+};
+
+const TYPE_LABEL = {
+  gym: 'Gym', pool: 'Pool',
+  court_badminton: 'Badminton Court', court_tennis: 'Tennis Court',
+  hall: 'Hall', studio: 'Studio', spa: 'Spa',
+  library: 'Library', clubhouse: 'Clubhouse', other: 'Facility',
+};
+
+function amenityCardHTML(item) {
+  const t = item.type || 'other';
+  const icon = AMENITY_ICONS[t] || AMENITY_ICONS.other;
+  const features = (item.features || []).slice(0, 3);
+  const chipHtml = features.map(f => `<span class="amenity-chip">${escapeHtml(f)}</span>`).join('');
+  const locationLine = [item.block, item.floor].filter(Boolean).join(' • ') || (item.location || '');
+  const hours = `${item.open_time || ''}-${item.close_time || ''}`;
+  return `
+    <div class="amenity-card" data-amenity-id="${escapeHtml(item.amenity_id || '')}" data-amenity-name="${escapeHtml(item.display_name || '')}" data-amenity-type="${escapeHtml(t)}">
+      <div class="amenity-card-head">
+        <div class="amenity-icon amenity-icon-${escapeHtml(t)}">${icon}</div>
+        <div class="amenity-card-title">
+          <h4>${escapeHtml(item.display_name || item.name || 'Amenity')}</h4>
+          <span class="amenity-type-tag">${escapeHtml(TYPE_LABEL[t] || t)}</span>
+        </div>
+      </div>
+      <p class="amenity-card-desc">${escapeHtml(item.description || '')}</p>
+      <div class="amenity-card-meta">
+        <span class="amenity-meta-item"><svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>${escapeHtml(locationLine)}</span>
+        <span class="amenity-meta-item"><svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>${escapeHtml(hours)}</span>
+        <span class="amenity-meta-item"><svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>Cap ${escapeHtml(String(item.capacity_per_slot || ''))}</span>
+      </div>
+      <div class="amenity-card-chips">${chipHtml}</div>
+      <div class="amenity-card-actions">
+        <button type="button" class="amenity-btn amenity-btn-info">Details</button>
+        <button type="button" class="amenity-btn amenity-btn-book">Book</button>
+      </div>
+    </div>
+  `;
+}
+
+function amenityGridHTML(items) {
+  if (!items || items.length === 0) return '<p class="amenity-empty">No amenities found.</p>';
+  return `<div class="amenity-grid">${items.map(amenityCardHTML).join('')}</div>`;
+}
+
+function bookingConfirmationHTML(b) {
+  const t = b.type || 'other';
+  const icon = AMENITY_ICONS[t] || AMENITY_ICONS.other;
+  return `
+    <div class="booking-confirmation">
+      <div class="booking-icon">${icon}</div>
+      <div class="booking-body">
+        <div class="booking-title">Booking Confirmed</div>
+        <div class="booking-amenity">${escapeHtml(b.amenity || '')}</div>
+        <div class="booking-meta">
+          <span><strong>Date:</strong> ${escapeHtml(b.date || '')}</span>
+          <span><strong>Slot:</strong> ${escapeHtml(b.slot || '')}</span>
+          <span><strong>Location:</strong> ${escapeHtml(b.location || '')}</span>
+        </div>
+        <div class="booking-id">ID: ${escapeHtml((b.booking_id || '').slice(0, 8).toUpperCase())}</div>
+      </div>
+    </div>
+  `;
+}
+
+// Resolves the date the user is asking about for the slot picker default.
+function defaultBookingISODate() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// Open the slot-picker modal for a specific amenity.
+async function openSlotPicker(amenityId, amenityName) {
+  const baseUrl = cfgUrl.value.replace(/\/+$/, '');
+  const orgId = cfgOrg.value;
+  const twinId = cfgTwin.value;
+  const dateISO = defaultBookingISODate();
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-overlay slot-picker-overlay';
+  overlay.innerHTML = `
+    <div class="modal-content slot-picker-modal">
+      <div class="modal-header">
+        <h3>Pick a slot — ${escapeHtml(amenityName || '')}</h3>
+        <button type="button" class="modal-close-btn" aria-label="Close">&times;</button>
+      </div>
+      <div class="slot-picker-controls">
+        <label>Date <input type="date" class="slot-date-input" value="${dateISO}" /></label>
+        <button type="button" class="modal-btn modal-btn-secondary slot-refresh">Refresh</button>
+      </div>
+      <div class="slot-list" aria-live="polite"><p class="amenity-empty">Loading slots...</p></div>
+    </div>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => overlay.remove();
+  overlay.querySelector('.modal-close-btn').addEventListener('click', close);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+
+  async function loadSlots() {
+    const dateInput = overlay.querySelector('.slot-date-input');
+    const list = overlay.querySelector('.slot-list');
+    list.innerHTML = '<p class="amenity-empty">Loading slots...</p>';
+    try {
+      const params = new URLSearchParams({ org_id: orgId, date: dateInput.value });
+      if (amenityId) params.set('amenity_id', amenityId);
+      else if (amenityName) params.set('amenity', amenityName);
+      const resp = await fetch(`${baseUrl}/society/amenities/slots?${params}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (data.error) {
+        list.innerHTML = `<p class="amenity-empty">${escapeHtml(data.error)}</p>`;
+        return;
+      }
+      const slots = data.slots || [];
+      if (slots.length === 0) {
+        list.innerHTML = '<p class="amenity-empty">No slots configured for this date.</p>';
+        return;
+      }
+      list.innerHTML = slots.map(s => `
+        <button type="button" class="slot-chip ${s.available ? '' : 'slot-chip-full'}" data-start="${escapeHtml(s.slot_start)}" ${s.available ? '' : 'disabled'}>
+          <span class="slot-time">${escapeHtml(s.slot_start)}–${escapeHtml(s.slot_end)}</span>
+          <span class="slot-remaining">${s.remaining}/${s.capacity}</span>
+        </button>
+      `).join('');
+      list.querySelectorAll('.slot-chip:not([disabled])').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.classList.add('slot-chip-loading');
+          try {
+            const params2 = new URLSearchParams({
+              org_id: orgId, twin_id: twinId,
+              date: dateInput.value, slot_start: btn.dataset.start,
+            });
+            if (amenityId) params2.set('amenity_id', amenityId);
+            else if (amenityName) params2.set('amenity', amenityName);
+            const resp2 = await fetch(`${baseUrl}/society/bookings?${params2}`, { method: 'POST' });
+            const data2 = await resp2.json();
+            if (resp2.ok && data2.success) {
+              showToast(`Booked ${data2.amenity || amenityName} for ${data2.slot}`, 'success');
+              appendStructuredMessage('booking', data2, '');
+              close();
+            } else {
+              const detail = (data2.detail && data2.detail.error) || data2.error || data2.detail || `HTTP ${resp2.status}`;
+              showToast(`Booking failed: ${detail}`, 'error');
+              btn.disabled = false;
+              btn.classList.remove('slot-chip-loading');
+            }
+          } catch (err) {
+            showToast(`Booking failed: ${err.message}`, 'error');
+            btn.disabled = false;
+            btn.classList.remove('slot-chip-loading');
+          }
+        });
+      });
+    } catch (err) {
+      list.innerHTML = `<p class="amenity-empty">Could not load slots: ${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  overlay.querySelector('.slot-refresh').addEventListener('click', loadSlots);
+  overlay.querySelector('.slot-date-input').addEventListener('change', loadSlots);
+  loadSlots();
+}
+
+async function showAmenityDetails(amenityId, amenityName) {
+  const baseUrl = cfgUrl.value.replace(/\/+$/, '');
+  const orgId = cfgOrg.value;
+  let info = null;
+  try {
+    if (amenityId) {
+      const resp = await fetch(`${baseUrl}/society/amenities/${encodeURIComponent(amenityId)}?org_id=${encodeURIComponent(orgId)}`);
+      if (resp.ok) info = await resp.json();
+    }
+  } catch (err) { /* fall through */ }
+  if (!info) {
+    sendMessage(`Tell me about ${amenityName}`);
+    return;
+  }
+  const features = (info.features || []).map(f => `<span class="amenity-chip">${escapeHtml(f)}</span>`).join('');
+  const card = `
+    <div class="amenity-detail-card">
+      <h4>${escapeHtml(info.display_name)}</h4>
+      <p>${escapeHtml(info.description || '')}</p>
+      <p><strong>Location:</strong> ${escapeHtml(info.location || '')}</p>
+      <p><strong>Hours:</strong> ${escapeHtml(info.open_time || '')}–${escapeHtml(info.close_time || '')}</p>
+      <p><strong>Capacity per slot:</strong> ${escapeHtml(String(info.capacity_per_slot || ''))}</p>
+      <div class="amenity-card-chips">${features}</div>
+    </div>
+  `;
+  appendRawHTML('system', card, '');
+}
+
 // ── Markdown Parser ──────────────────────────────────────────────────
 function parseMarkdown(text) {
   if (!text) return '';
@@ -158,9 +449,17 @@ function timeNow() {
 
 // ── Quick Action Definitions ─────────────────────────────────────────
 const MEMBER_ACTIONS = [
-  { id: 'book-gym',     icon: '\u{1F3CB}', iconClass: 'icon-blue',   title: 'Book Gym',       desc: 'Reserve a gym slot',         message: 'Book gym at 7pm' },
-  { id: 'book-pool',    icon: '\u{1F3CA}', iconClass: 'icon-cyan',   title: 'Book Pool',      desc: 'Reserve pool time',          message: 'Book pool for tomorrow 6am' },
+  // Discovery first \u2014 these showcase the multi-instance amenity catalogue.
+  { id: 'all-amenities',icon: '\u{1F3DB}', iconClass: 'icon-purple', title: 'All Amenities',  desc: 'Browse every facility',      message: 'What amenities are available?' },
+  { id: 'all-gyms',     icon: '\u{1F4AA}', iconClass: 'icon-blue',   title: 'All Gyms',       desc: 'See every gym & location',   message: 'Show me all the gyms' },
+  { id: 'all-courts',   icon: '\u{1F3BE}', iconClass: 'icon-green',  title: 'All Courts',     desc: 'Tennis & badminton',         message: 'Show me all courts available' },
+  { id: 'all-pools',    icon: '\u{1F3CA}', iconClass: 'icon-cyan',   title: 'All Pools',      desc: 'Pools and splash zones',     message: 'Show me all the pools' },
+  // Booking magic \u2014 ambiguous "Book Gym" demonstrates disambiguation.
+  { id: 'book-gym',     icon: '\u{1F3CB}', iconClass: 'icon-blue',   title: 'Book Gym',       desc: 'ARIA picks the right one',   message: 'Book gym at 7pm tomorrow' },
+  { id: 'book-blocka',  icon: '\u{1F3CB}', iconClass: 'icon-purple', title: 'Block A Gym',    desc: 'Direct slot booking',        message: 'Book Block A gym tomorrow at 8am' },
   { id: 'book-club',    icon: '\u{1F3E0}', iconClass: 'icon-purple', title: 'Book Clubhouse', desc: 'Reserve the clubhouse',      message: 'I want to book the clubhouse for Saturday evening' },
+  { id: 'spa-info',     icon: '\u{1F4AB}', iconClass: 'icon-yellow', title: 'Spa Details',    desc: 'Hours, features, location',  message: 'Tell me about the wellness spa' },
+  // Lifecycle (tickets, dues, events, notices, RSVP).
   { id: 'raise-ticket', icon: '\u{1F527}', iconClass: 'icon-red',    title: 'Raise Ticket',   desc: 'Report maintenance issue',   message: 'AC not working in my flat' },
   { id: 'urgent-ticket',icon: '\u{1F6A8}', iconClass: 'icon-orange', title: 'Urgent Issue',   desc: 'Report an emergency',        message: 'There is a water leakage flooding in my bathroom, urgent!' },
   { id: 'check-events', icon: '\u{1F389}', iconClass: 'icon-pink',   title: 'Events Today',   desc: "What's happening?",          message: 'What events are happening today?' },
@@ -308,16 +607,36 @@ if (bulkDenyBtn) bulkDenyBtn.addEventListener('click', () => {
 });
 
 // ── Role Switching ───────────────────────────────────────────────────
+// Each role uses a different twin + API key (the backend authorises admin
+// tools strictly by JWT role claim, not by client UI state). Toggling roles
+// must therefore swap credentials AND drop the existing token so the next
+// request triggers a fresh login under the new identity.
+const ROLE_CREDENTIALS = {
+  member: { twin_id: 'tanmay_resident',  api_key: 'tanmay-key-001' },
+  admin:  { twin_id: 'communityos_ops',  api_key: 'ops-key-001'    },
+};
+
 $$('.role-btn').forEach((btn) => {
   btn.addEventListener('click', () => {
+    const newRole = btn.dataset.role;
+    if (newRole === state.role) return;
+
     $$('.role-btn').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
-    state.role = btn.dataset.role;
+    state.role = newRole;
     roleBadge.textContent = state.role === 'admin' ? t('admin') : t('member');
     roleBadge.className = `role-badge ${state.role === 'admin' ? 'role-admin' : 'role-member'}`;
+
+    const creds = ROLE_CREDENTIALS[newRole];
+    if (creds) {
+      cfgTwin.value = creds.twin_id;
+      cfgKey.value  = creds.api_key;
+      clearToken();
+    }
+
     renderActions();
     renderAdminPanels();
-    showToast(`Switched to ${state.role} mode`, 'info');
+    showToast(`Switched to ${state.role} mode — re-authenticating as ${creds ? creds.twin_id : '?'}`, 'info');
   });
 });
 
@@ -516,31 +835,42 @@ async function sendMessage(text) {
   try {
     const baseUrl = cfgUrl.value.replace(/\/+$/, '');
     const langHint = state.lang === 'hi' ? ' (Reply in Hindi/Hinglish)' : '';
-    const resp = await fetch(`${baseUrl}/aria/chat`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        twin_id: cfgTwin.value,
-        org_id: cfgOrg.value,
-        user_api_key: cfgKey.value,
-        role: state.role,
-        message: text + langHint,
-        conversation_id: state.conversationId,
-      }),
-    });
+    const resp = await authFetch(
+      `${baseUrl}/aria/chat`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          role: state.role,
+          message: text + langHint,
+          conversation_id: state.conversationId,
+        }),
+      },
+      baseUrl, cfgTwin.value, cfgKey.value, cfgOrg.value,
+    );
 
     removeTyping(typingEl);
 
     if (!resp.ok) {
       const errData = await resp.json().catch(() => ({}));
-      throw new Error(errData.detail || `HTTP ${resp.status}`);
+      if (resp.status === 429 && errData.detail && errData.detail.kind) {
+        throw new Error(`Rate limit hit (${errData.detail.kind}). Retry in ${errData.detail.retry_after_s || 60}s.`);
+      }
+      throw new Error(typeof errData.detail === 'string' ? errData.detail : `HTTP ${resp.status}`);
     }
 
     const data = await resp.json();
     state.conversationId = data.conversation_id || state.conversationId;
 
-    // Typewriter effect for ARIA reply
-    appendMessageTypewriter('system', data.reply, data.action_taken);
+    // Detect structured payloads (AMENITIES_LIST::, BOOKING_RESULT::) and
+    // render rich cards. Otherwise fall back to the typewriter.
+    const parsed = extractStructured(data.reply || '');
+    if (parsed.kind === 'amenities') {
+      appendStructuredMessage('amenities', parsed.data, parsed.caption || '', data.action_taken);
+    } else if (parsed.kind === 'booking') {
+      appendStructuredMessage('booking', parsed.data, parsed.caption || '', data.action_taken);
+    } else {
+      appendMessageTypewriter('system', data.reply, data.action_taken);
+    }
     playNotificationSound();
     updateConnection(true);
 
@@ -588,6 +918,63 @@ function appendMessage(role, text, actionTaken, imageData) {
   // Save to state
   state.messages.push({ role, text, actionTaken, time, image: imageData ? '(image)' : null });
   return div;
+}
+
+// ── Structured Card Renderers ────────────────────────────────────────
+function appendRawHTML(role, innerHTML, actionTaken) {
+  const div = document.createElement('div');
+  div.className = `msg msg-${role}`;
+  const time = timeNow();
+  const actionTag = actionTaken ? `<span class="action-badge">⚡ ${actionTaken}</span>` : '';
+  const avatarHTML = `<div class="msg-avatar system-avatar">
+    <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="14" stroke="url(#g1)" stroke-width="2"/><path d="M16 8v8l5.5 3" stroke="url(#g1)" stroke-width="2" stroke-linecap="round"/></svg>
+  </div>`;
+  div.innerHTML = `
+    ${avatarHTML}
+    <div class="msg-body">
+      <div class="msg-meta">
+        <span class="msg-name">ARIA</span>
+        <span class="msg-time">${time}</span>
+      </div>
+      <div class="msg-content">${innerHTML}</div>
+      ${actionTag}
+    </div>
+  `;
+  chatMessages.appendChild(div);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return div;
+}
+
+function appendStructuredMessage(kind, data, caption, actionTaken) {
+  let body = '';
+  if (kind === 'amenities') {
+    const items = (data && data.items) || [];
+    const captionHTML = caption ? `<p class="amenity-caption">${escapeHtml(caption)}</p>` : '';
+    body = `${captionHTML}${amenityGridHTML(items)}`;
+  } else if (kind === 'booking') {
+    const captionHTML = caption ? `<p class="amenity-caption">${escapeHtml(caption)}</p>` : '';
+    body = `${captionHTML}${bookingConfirmationHTML(data || {})}`;
+  } else {
+    body = `<p>${escapeHtml(caption || '')}</p>`;
+  }
+  const div = appendRawHTML('system', body, actionTaken);
+  // Attach handlers to amenity buttons inside this message.
+  div.querySelectorAll('.amenity-card').forEach(card => {
+    const id = card.dataset.amenityId || '';
+    const name = card.dataset.amenityName || '';
+    const bookBtn = card.querySelector('.amenity-btn-book');
+    const infoBtn = card.querySelector('.amenity-btn-info');
+    if (bookBtn) bookBtn.addEventListener('click', () => openSlotPicker(id, name));
+    if (infoBtn) infoBtn.addEventListener('click', () => showAmenityDetails(id, name));
+  });
+  // Persist as a raw text record (state.messages stays as-is for export).
+  state.messages.push({
+    role: 'system',
+    text: kind === 'amenities' ? `[Amenity list — ${(data && data.items || []).length} items]` : `[Booking confirmed]`,
+    actionTaken,
+    time: timeNow(),
+  });
+  saveMessages();
 }
 
 // ── Typewriter Effect ────────────────────────────────────────────────

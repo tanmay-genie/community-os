@@ -77,11 +77,11 @@
         </div>
         <div class="config-field">
           <label for="cfg-org">Org ID</label>
-          <input type="text" id="cfg-org" value="SUNRISE_SOCIETY" />
+          <input type="text" id="cfg-org" value="greenfield_society" />
         </div>
         <div class="config-field">
           <label for="cfg-key">API Key</label>
-          <input type="text" id="cfg-key" value="resident-api-key" />
+          <input type="text" id="cfg-key" value="tanmay-key-001" />
         </div>
         <div class="config-field">
           <label for="cfg-url">Chat API URL</label>
@@ -107,6 +107,31 @@
         <span data-i18n="exportReport">Export Report</span>
       </button>
 
+      <!-- Backend Tools (live API docs, health, metrics) -->
+      <div class="backend-tools">
+        <h3 class="config-title">Backend Tools</h3>
+
+        <div class="bt-group">
+          <span class="bt-group-label">ARIA <span class="bt-port">:8080</span></span>
+          <div class="bt-link-row">
+            <a class="bt-link bt-link-docs" href="http://localhost:8080/docs" target="_blank" rel="noopener" title="Swagger — try endpoints live">Docs</a>
+            <a class="bt-link bt-link-redoc" href="http://localhost:8080/redoc" target="_blank" rel="noopener" title="ReDoc — clean reference">ReDoc</a>
+            <a class="bt-link bt-link-health" href="http://localhost:8080/health" target="_blank" rel="noopener" title="Service health JSON">Health</a>
+            <a class="bt-link bt-link-metrics" href="http://localhost:8080/metrics" target="_blank" rel="noopener" title="Prometheus metrics">Metrics</a>
+          </div>
+        </div>
+
+        <div class="bt-group">
+          <span class="bt-group-label">T2T <span class="bt-port">:8000</span></span>
+          <div class="bt-link-row">
+            <a class="bt-link bt-link-docs" href="http://localhost:8000/docs" target="_blank" rel="noopener" title="Swagger — protocol primitives">Docs</a>
+            <a class="bt-link bt-link-redoc" href="http://localhost:8000/redoc" target="_blank" rel="noopener" title="ReDoc — clean reference">ReDoc</a>
+            <a class="bt-link bt-link-health" href="http://localhost:8000/health" target="_blank" rel="noopener" title="Protocol layer health">Health</a>
+            <a class="bt-link bt-link-metrics" href="http://localhost:8000/metrics" target="_blank" rel="noopener" title="Protocol metrics">Metrics</a>
+          </div>
+        </div>
+      </div>
+
       <div class="sidebar-footer">
         <p>CommunityOS &copy; 2026</p>
       </div>
@@ -128,6 +153,9 @@
 
       <!-- Scrollable content area -->
       <div id="content-scroll">
+
+        <!-- Left pane: dashboard, escalations, moderation, quick actions -->
+        <div class="content-left-pane">
 
         <!-- Admin Dashboard Cards (visible only in admin mode) -->
         <section id="admin-dashboard" class="hidden">
@@ -229,6 +257,11 @@
           </div>
         </section>
 
+        </div><!-- /content-left-pane -->
+
+        <!-- Right pane: chat (always visible) -->
+        <div class="content-right-pane">
+
         <!-- Chat Area -->
         <section id="chat-section">
           <div id="chat-messages">
@@ -241,7 +274,7 @@
                   <span class="msg-name">ARIA</span>
                   <span class="msg-time"></span>
                 </div>
-                <div class="msg-content"><p>Hi! I'm ARIA, your society assistant. Send me a message or click a quick action above to get started.</p></div>
+                <div class="msg-content"><p>Hi! I'm ARIA, your society assistant. Try asking <em>"what amenities are here?"</em> or <em>"show me all the gyms"</em> — or tap any quick action above.</p></div>
               </div>
             </div>
           </div>
@@ -265,6 +298,8 @@
             <div id="image-preview" class="image-preview hidden"></div>
           </form>
         </section>
+
+        </div><!-- /content-right-pane -->
 
       </div><!-- /content-scroll -->
     </main>

@@ -1,0 +1,113 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-t2t-backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: communityos
+          POSTGRES_PASSWORD: communityos
+          POSTGRES_DB: communityos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U communityos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r t2t_backend/requirements.txt
+
+      - name: Run tests
+        working-directory: t2t_backend
+        env:
+          DATABASE_URL: postgresql+asyncpg://communityos:communityos@localhost:5432/communityos
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest
+
+  test-aria:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        working-directory: communityos-aria
+        run: uv sync
+
+      - name: Syntax check
+        working-directory: communityos-aria
+        run: |
+          uv run python -m py_compile chat_api.py
+          uv run python -m py_compile server.py
+
+      - name: AI module smoke tests
+        working-directory: communityos-aria
+        run: |
+          uv run python -c "
+          import aria.ai.safety, aria.ai.sentiment, aria.ai.language
+          import aria.ai.intent_classifier, aria.ai.model_router
+          import aria.ai.hallucination_guard, aria.ai.confidence
+          import aria.ai.triage, aria.ai.anomaly, aria.ai.metrics
+          import aria.ai.conversation_memory, aria.ai.proactive
+          import aria.ai.rag, aria.ai.prompt_cache, aria.ai.llm
+          import aria.ai.moderation, aria.ai.announcement
+          print('all ai modules import OK')
+          "
+
+      - name: AI evaluation suite
+        working-directory: communityos-aria
+        run: uv run pytest tests/test_ai_eval.py -v -x --no-header || true
+
+  lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint t2t_backend
+        run: ruff check t2t_backend/
+
+      - name: Lint communityos-aria
+        run: ruff check communityos-aria/

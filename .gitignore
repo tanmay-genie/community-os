@@ -1,32 +1,56 @@
-# Environments
+# ── Secrets ──────────────────────────────
 .env
 .env.local
-.venv
+.env.production
+!.env.example
+
+# ── Python ───────────────────────────────
+.venv/
 venv/
 ENV/
-env/
 __pycache__/
 *.py[cod]
 *$py.class
+*.egg-info/
+*.egg
+dist/
+build/
 *.sqlite3
 
-# Node modules
+# ── Node ─────────────────────────────────
 node_modules/
 npm-debug.log
 yarn-error.log
 
-# Next.js / build output
+# ── Build output ─────────────────────────
 .next/
 out/
-build/
-dist/
 
-# OS files
+# ── OS files ─────────────────────────────
 .DS_Store
 Thumbs.db
 
-# IDEs and Editors
+# ── IDEs ─────────────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
+
+# ── Redis ────────────────────────────────
+dump.rdb
+
+# ── Graphify output ──────────────────────
+graphify-out/
+.graphify*
+
+# ── Pytest cache ─────────────────────────
+.pytest_cache/
+
+# ── UV lock (generated) ─────────────────
+uv.lock
+
+# ── Claude Code session state ────────────
+.claude/
+
+# ── Local-only zips / archives ───────────
+t2t_backend.zip

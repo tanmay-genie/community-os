@@ -16,6 +16,8 @@ from fastapi.responses import JSONResponse
 
 from auth.db import create_all_tables
 from config import settings
+from obs.correlation import RequestIDMiddleware, install_logging
+from obs.prom import PromMiddleware, render_metrics as render_prom_metrics
 from redis_client import close_redis, get_redis
 
 # ── Structured Logging ────────────────────────────────────────────────────────
@@ -25,6 +27,7 @@ logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
     stream=sys.stdout,
 )
+install_logging()
 logger = logging.getLogger("t2t")
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -49,6 +52,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(PromMiddleware)
 
 # ── Global exception handler ──────────────────────────────────────────────────
 
@@ -108,13 +113,32 @@ app.include_router(admin_router)
 
 # ── Health check ──────────────────────────────────────────────────────────────
 
+@app.get("/metrics", include_in_schema=False)
+async def prom_metrics():
+    return render_prom_metrics()
+
+
 @app.get("/health", tags=["System"])
 async def health() -> dict:
+    checks = {"db": "ok", "redis": "ok"}
+    try:
+        from auth.db import AsyncSessionLocal
+        async with AsyncSessionLocal() as session:
+            await session.execute(__import__("sqlalchemy").text("SELECT 1"))
+    except Exception as e:
+        checks["db"] = f"error: {e}"
+    try:
+        redis = await get_redis()
+        await redis.ping()
+    except Exception as e:
+        checks["redis"] = f"error: {e}"
+    overall = "ok" if all(v == "ok" for v in checks.values()) else "degraded"
     return {
-        "status": "ok",
+        "status": overall,
         "service": "t2t-backend",
         "version": "1.0.0",
         "env": settings.APP_ENV,
+        "checks": checks,
     }
 
 

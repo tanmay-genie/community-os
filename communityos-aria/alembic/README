@@ -1,0 +1,11 @@
+ARIA Alembic — async-DBAPI migrations for ARIA's own database.
+
+Tables managed here:
+  - amenities, bookings, community_events, dues, community_notices, rsvps
+    (society domain — moved from t2t_backend during the T2T extraction)
+  - rag_chunks (RAG chunks with optional pgvector)
+  - llm_calls (LLM call metrics)
+
+Run:
+    cd communityos-aria
+    alembic upgrade head
