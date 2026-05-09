@@ -38,7 +38,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-ORG = "greenfield_society"
+ORG = "maple_heights"
 
 
 @pytest.fixture(scope="module")

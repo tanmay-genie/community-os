@@ -180,8 +180,8 @@ DEFAULT_SOCIETY_DOCS = [
         "title": "Maintenance and Dues Policy",
         "text": (
             "Monthly maintenance is due on the 5th of every month. A late fee of 2 percent per month "
-            "applies after the 15th. Parking charges are Rs.1500 per month per vehicle. Dues above "
-            "Rs.10,000 trigger restricted access to amenity bookings until paid. Payment methods "
+            "applies after the 15th. Parking charges are CAD $1500 per month per vehicle. Dues above "
+            "CAD $10,000 trigger restricted access to amenity bookings until paid. Payment methods "
             "accepted: UPI, bank transfer, cheque. Receipts are emailed within 24 hours."
         ),
     },

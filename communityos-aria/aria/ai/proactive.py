@@ -44,7 +44,7 @@ def suggest_followups(twin_id: str, last_intent: str | None, tool_result: dict |
         total = tool_result.get("total", 0)
         if total > 0:
             suggestions.append(Suggestion(
-                intent="pay_dues", display=f"Pay Rs.{total:,.0f} now",
+                intent="pay_dues", display=f"Pay CAD ${total:,.0f} now",
                 reason="User just checked dues and has pending balance",
                 priority=1,
             ))

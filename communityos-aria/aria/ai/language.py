@@ -38,11 +38,6 @@ def detect_language(message: str) -> str:
 
 
 def language_hint(lang: str) -> str:
-    if lang == "hindi":
-        return ("भाषा निर्देश: उपयोगकर्ता ने हिंदी में लिखा है। "
-                "कृपया देवनागरी में संक्षिप्त, मैत्रीपूर्ण उत्तर दें। तकनीकी शब्द अंग्रेज़ी में रख सकते हैं।")
-    if lang == "hinglish":
-        return ("Language instruction: The user mixed Hindi + English (Hinglish). "
-                "Reply in the same casual Hinglish style — roman-script Hindi words "
-                "mixed with English is perfect. Don't switch to pure English or pure Hindi.")
+    """English-only product. We keep the detector for analytics, but never
+    instruct the LLM to reply in Hindi/Hinglish — every reply is English."""
     return ""

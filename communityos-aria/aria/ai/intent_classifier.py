@@ -27,14 +27,12 @@ INTENT_EXAMPLES: dict[str, list[str]] = {
         "what amenities are available",
         "show me all facilities",
         "what can I book",
-        "kya kya available hai",
         "list all amenities",
-        "show me everything in the society",
-        "what facilities does the society have",
+        "show me everything in the building",
+        "what facilities does the building have",
     ],
     "find_amenities_by_type": [
         "show me all gyms",
-        "kitne gym hai",
         "list all the pools",
         "all badminton courts",
         "tennis courts available",
@@ -90,9 +88,9 @@ INTENT_EXAMPLES: dict[str, list[str]] = {
     ],
     "rsvp_to_event": [
         "sign me up for yoga",
-        "rsvp for the society meeting",
-        "I want to attend the cricket event",
-        "count me in for Holi celebration",
+        "rsvp for the AGM",
+        "I want to attend the rooftop social",
+        "count me in for the spring event",
     ],
     "check_dues": [
         "do I have any pending dues",
@@ -102,7 +100,7 @@ INTENT_EXAMPLES: dict[str, list[str]] = {
     ],
     "pay_dues": [
         "pay my maintenance",
-        "I want to pay 4500 rupees",
+        "I want to pay CAD $480",
         "clear my dues",
         "settle the balance",
     ],

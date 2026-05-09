@@ -34,6 +34,13 @@ from aria.ai.anomaly import detector as anomaly_detector
 from aria.ai.announcement import draft_announcement
 from aria.ai.confidence import score_decision
 from aria.ai.conversation_memory import memory as conv_memory, build_summarization_prompt
+from aria.ai.conversation_state import (
+    PENDING as pending_actions,
+    park_amount,
+    park_disambiguation,
+    park_yes_no,
+    try_resume,
+)
 from aria.ai.hallucination_guard import safe_format, validate_reply
 from aria.ai.intent_classifier import classify_intent
 from aria.ai.language import detect_language, language_hint
@@ -105,6 +112,13 @@ async def _startup() -> None:
     except Exception as e:
         logger.warning("RAG bootstrap failed: %s", e)
 
+    try:
+        from aria.ai.bylaws import bootstrap_demo_bylaws
+        n = bootstrap_demo_bylaws("maple_heights")
+        logger.info("Bylaw index ready for maple_heights: %d sections", n)
+    except Exception as e:
+        logger.warning("Bylaw bootstrap failed: %s", e)
+
     # Society tables live in ARIA's DB now (extracted from T2T). Create them
     # in dev/test; production should use Alembic migrations under
     # `communityos-aria/alembic/`.
@@ -171,20 +185,19 @@ INTENT_PATTERNS = {
         r"^\s*(?:what|which|tell me|show me|list|all)\s+(?:are\s+the\s+)?(?:amenities|facilities|things|stuff)\b",
         r"^\s*(?:show|list)\s+(?:me\s+)?(?:all\s+)?(?:amenities|facilities)\b",
         r"\bwhat\s+(?:can|could)\s+i\s+book\b",
-        r"\bkya\s+kya\s+(?:hai|available)\b",
-        r"\b(?:available|kya)\s+amenities\b",
-        r"\bsociety\s+(?:has|mein)\s+(?:kya|what)\b",
+        r"\b(?:available)\s+amenities\b",
+        r"\bbuilding\s+(?:has|amenities)\b",
     ],
     "find_amenities_by_type": [
-        r"\b(?:show|list|all|how many|kitne)\s+(?:me\s+)?(?:all\s+|the\s+)?(gyms?|pools?|halls?|courts?|studios?|spas?|libraries|clubhouses?)\b",
-        r"\b(gyms?|pools?|halls?|studios?|spas?|libraries)\s+(?:available|in\s+(?:the\s+)?society|here|hai|kitne)",
-        r"\b(badminton\s+courts?|tennis\s+courts?)\b\s*(?:available|hai|kitne|list)?",
+        r"\b(?:show|list|all|how many)\s+(?:me\s+)?(?:all\s+|the\s+)?(gyms?|pools?|halls?|courts?|studios?|spas?|libraries|clubhouses?)\b",
+        r"\b(gyms?|pools?|halls?|studios?|spas?|libraries)\s+(?:available|in\s+(?:the\s+)?building|here)",
+        r"\b(badminton\s+courts?|tennis\s+courts?)\b\s*(?:available|list)?",
     ],
     "get_amenity_info": [
         r"\btell\s+me\s+about\s+(?:the\s+)?(.+?\b(?:gym|pool|hall|court|spa|studio|clubhouse|library))\b",
         r"\b(?:details|info|information)\s+(?:on|about|of)\s+(?:the\s+)?(.+)\b",
         r"\bwhat'?s\s+(?:in|inside)\s+(?:the\s+)?(.+\b(?:gym|pool|hall|spa|studio|clubhouse|library))\b",
-        r"\b(?:describe|kahan|kahaan)\s+(?:is|hai)?\s*(?:the\s+)?(.+)\b",
+        r"\bdescribe\s+(?:the\s+)?(.+)\b",
     ],
     "show_amenity_slots": [
         r"\b(gym|pool|clubhouse|badminton|tennis|community hall|hall|spa|studio|library)\s+slots?\b",
@@ -228,23 +241,41 @@ INTENT_PATTERNS = {
         r"(?:count\s+me\s+in|put\s+me\s+down)",
     ],
     "check_dues": [
-        r"(?:pending|check|my|any|show)\s*(?:my\s+)?(?:dues?|payment|balance|owe)",
+        r"(?:pending|check|my|any|show)\s*(?:my\s+)?(?:dues?|payment|balance|owe|fees?|strata\s+fee|maintenance\s+fee)",
         r"(?:how\s+much|what)\s+(?:do\s+i\s+)?(?:owe|due|pending)",
-        r"(?:is\s+)?my\s+rent\s+(?:paid|due|pending)",
-        r"(?:do\s+i\s+have\s+any)\s+(?:pending\s+)?(?:dues|payments|balance)",
+        r"(?:is\s+)?my\s+(?:rent|strata\s+fee|maintenance\s+fee)\s+(?:paid|due|pending)",
+        r"(?:do\s+i\s+have\s+any)\s+(?:pending\s+)?(?:dues|payments|balance|fees)",
+        r"\b(?:any|pending)\s+(?:fees?|strata|maintenance)\b",
     ],
     "pay_dues": [
-        r"pay\s+(?:my\s+)?(?:rent|maintenance|dues|bill)",
-        r"(?:clear|settle)\s+(?:my\s+)?(?:dues|payment|balance)",
+        r"pay\s+(?:my\s+)?(?:rent|maintenance|dues|bill|strata\s+fee|fees?)",
+        r"(?:clear|settle)\s+(?:my\s+)?(?:dues|payment|balance|fees?)",
         r"pay\s+.*\d+",
         r"(?:i\s+)?(?:want|need)\s+to\s+pay",
         r"make\s+(?:a\s+)?payment",
     ],
     "get_notices": [
         r"(?:any|new|latest|show|get|read)\s*(?:my\s+)?(?:notices?|announcement|update|circular)",
-        r"(?:notices?|announcement)\s*(?:from|of)\s*(?:the\s+)?society",
-        r"society\s+(?:update|news|notice)",
-        r"(?:what'?s\s+)?new\s+(?:in\s+(?:the\s+)?)?society",
+        r"(?:notices?|announcement)\s*(?:from|of)\s*(?:the\s+)?(?:society|building)",
+        r"(?:society|building)\s+(?:update|news|notice)",
+        r"(?:what'?s\s+)?new\s+(?:in\s+(?:the\s+)?)?(?:society|building)",
+    ],
+    "lookup_bylaws": [
+        # Direct bylaw / rule queries — must come BEFORE generic intents so
+        # "what does the bylaw say about pets" doesn't fall to get_notices.
+        r"\b(?:bylaw|by-law|rule|rules|policy|policies|condo\s+rule|strata\s+rule)\b",
+        r"\b(?:am\s+i|are\s+(?:we|residents)|can\s+i|may\s+i|am\s+i\s+allowed)\b",
+        r"\b(?:is|are)\s+(?:.+?)\s+(?:allowed|permitted|prohibited|banned|legal|ok|okay)\b",
+        r"\bwhat\s+(?:does\s+the\s+)?(?:bylaw|rule|policy|condo|strata)\s+say\b",
+        r"\bquiet\s+hours?\b",
+        r"\b(?:pet|dog|cat)s?\s+(?:rules?|policy|allowed|restriction|permitted)\b",
+        r"\b(?:are\s+)?pets?\s+(?:allowed|permitted)\b",
+        r"\b(?:hardwood|flooring|floor\s+covering)\b",
+        r"\b(?:smoking|smoke|cannabis|vape|vaping)\b",
+        r"\b(?:bbq|barbecue|barbeque|grill)\b",
+        r"\b(?:short[- ]term\s+rental|airbnb|vrbo|list\s+my\s+unit)\b",
+        r"\bmove[- ](?:in|out)\b",
+        r"\b(?:install|installation)\s+(?:hardwood|flooring|wood|tile|carpet)\b",
     ],
     "get_society_insights": [
         r"(society|community)\s*(summary|insight|report|health|overview|status)",
@@ -288,6 +319,7 @@ ACTION_MAP = {
     "check_dues": "CHECKED_DUES",
     "pay_dues": "PAYMENT_INITIATED",
     "get_notices": "FETCHED_NOTICES",
+    "lookup_bylaws": "BYLAW_LOOKED_UP",
     "get_society_insights": "FETCHED_INSIGHTS",
     "get_pending_escalations": "FETCHED_ESCALATIONS",
     "approve_escalation": "ESCALATION_APPROVED",
@@ -355,6 +387,19 @@ def extract_args(intent: str, message: str, conv_id: str = "") -> dict:
 
     if intent == "list_society_amenities":
         # No args needed — org_id is injected at call time.
+        return args
+
+    if intent == "lookup_bylaws":
+        # Pass the original message as the question; the bylaw module
+        # does its own retrieval ranking. Strip leading polite hedges so
+        # they don't pollute the embedding query.
+        cleaned = re.sub(
+            r"^\s*(hi|hey|hello|please|excuse me|quick question|sorry)[,!]?\s+",
+            "",
+            message,
+            flags=re.IGNORECASE,
+        ).strip()
+        args["question"] = cleaned or message
         return args
 
     if intent == "find_amenities_by_type":
@@ -688,6 +733,11 @@ async def call_t2t_tool(func_name: str, args: dict, twin_id: str, org_id: str, c
             result = await t2t.get_notices(org_id=org_id)
             return {"status": "success", "notices": result if isinstance(result, list) else result.get("notices", [])}
 
+        elif func_name == "lookup_bylaws":
+            from aria.ai.bylaws import lookup as bylaw_lookup
+            question = (args.get("question") or args.get("query") or "").strip()
+            return bylaw_lookup(org_id, question)
+
         elif func_name == "check_dues":
             result = await t2t.get_dues(twin_id=twin_id, org_id=org_id)
             return {"status": "success", "dues": result.get("dues", []), "total": result.get("total", 0)}
@@ -700,7 +750,7 @@ async def call_t2t_tool(func_name: str, args: dict, twin_id: str, org_id: str, c
                 if total > 0:
                     return {"status": "need_amount", "total_due": total,
                             "dues": dues.get("dues", []),
-                            "message": f"You have Rs.{total:,.0f} in pending dues. How much would you like to pay?"}
+                            "message": f"You have CAD ${total:,.0f} in pending dues. How much would you like to pay?"}
                 return {"status": "error", "message": "No pending dues found."}
             result = await t2t.initiate_payment(
                 user_api_key=api_key, twin_id=twin_id, org_id=org_id,
@@ -710,7 +760,7 @@ async def call_t2t_tool(func_name: str, args: dict, twin_id: str, org_id: str, c
             return {"status": result.get("status", "success"), "t2t_response": result,
                     "payment_id": result.get("message_id", f"PAY-{idem_key[:8].upper()}"),
                     "amount": amount,
-                    "message": f"Payment of Rs.{amount:,.0f} initiated through T2T pipeline."}
+                    "message": f"Payment of CAD ${amount:,.0f} initiated through T2T pipeline."}
 
         elif func_name == "get_society_events":
             today = datetime.utcnow().strftime("%Y-%m-%d")
@@ -766,7 +816,7 @@ async def call_t2t_tool(func_name: str, args: dict, twin_id: str, org_id: str, c
             return {"status": "success", **result}
 
         else:
-            return simulate_tool(func_name, args, twin_id, org_id)
+            return await simulate_tool(func_name, args, twin_id, org_id)
 
     except httpx.HTTPStatusError as e:
         detail = ""
@@ -775,28 +825,79 @@ async def call_t2t_tool(func_name: str, args: dict, twin_id: str, org_id: str, c
         except Exception:
             detail = str(e)
         logger.warning("T2T call failed for %s (HTTP %s): %s", func_name, e.response.status_code, detail)
-        sim = simulate_tool(func_name, args, twin_id, org_id)
+        sim = await simulate_tool(func_name, args, twin_id, org_id)
         sim["_t2t_note"] = f"T2T backend returned {e.response.status_code}: {detail}. Showing simulated data."
         return sim
 
     except Exception as e:
         logger.warning("T2T call failed for %s: %s — falling back to simulation", func_name, e)
-        sim = simulate_tool(func_name, args, twin_id, org_id)
+        sim = await simulate_tool(func_name, args, twin_id, org_id)
         sim["_t2t_note"] = f"T2T backend unavailable ({e}). Showing simulated data."
         return sim
 
 
-def simulate_tool(func_name: str, args: dict, twin_id: str, org_id: str) -> dict:
+def _parse_clock_to_24h(t: str) -> str:
+    """Best-effort '7pm' / '7:00pm' / '19' → 'HH:MM'. Returns input unchanged on failure."""
+    s = (t or "").strip().lower().replace(" ", "")
+    if not s:
+        return t
+    m = re.match(r"^(\d{1,2})(?::(\d{2}))?(am|pm)?$", s)
+    if not m:
+        return t
+    hh = int(m.group(1))
+    mm = int(m.group(2) or 0)
+    suf = m.group(3)
+    if suf == "pm" and hh < 12:
+        hh += 12
+    if suf == "am" and hh == 12:
+        hh = 0
+    return f"{hh:02d}:{mm:02d}"
+
+
+async def simulate_tool(func_name: str, args: dict, twin_id: str, org_id: str) -> dict:
     now = datetime.utcnow()
     bid = str(uuid.uuid4())[:8].upper()
 
     if func_name == "book_amenity":
         amenity = args.get("amenity_name", "gym")
-        time_slot = args.get("time_slot", "7pm")
+        time_slot = args.get("time_slot", "7pm") or args.get("slot_time", "7pm")
         date = args.get("date", "today")
-        return {"status": "success", "booking_id": f"BK-{bid}", "amenity": amenity,
-                "date": date, "time_slot": time_slot, "booked_by": twin_id,
-                "message": f"{amenity.title()} booked for {time_slot} on {date}."}
+        # Use the in-process society client so disambiguation + real DB
+        # bookings still happen even when T2T HTTP is unreachable. The
+        # simulation must NOT fabricate a booking when multiple amenities
+        # share the requested name — it must surface the options list so
+        # the LLM can ask the user to disambiguate.
+        try:
+            from aria.society import client as society_client
+            slot_24h = time_slot if ":" in (time_slot or "") else _parse_clock_to_24h(time_slot)
+            booking = await society_client.book_amenity_slot(
+                org_id=org_id, amenity=amenity, twin_id=twin_id,
+                date=date, slot_start=slot_24h,
+            )
+            if booking.get("success"):
+                return {
+                    "status": "booked",
+                    "booking_id": booking["booking_id"],
+                    "amenity": booking.get("amenity", amenity),
+                    "amenity_id": booking.get("amenity_id", ""),
+                    "location": booking.get("location", ""),
+                    "date": booking.get("date", date),
+                    "slot": booking.get("slot", time_slot),
+                    "remaining_capacity": booking.get("remaining_capacity"),
+                    "message": f"{booking.get('amenity', amenity)} booked for {booking.get('slot', time_slot)} on {booking.get('date', date)}.",
+                }
+            # Disambiguation or genuine failure — surface as-is so the LLM
+            # asks the user which one.
+            return {
+                "status": "needs_disambiguation" if booking.get("options") else "error",
+                "amenity": amenity,
+                "error": booking.get("error", "Could not book"),
+                "options": booking.get("options", []),
+                "message": booking.get("error", "Booking could not be completed."),
+            }
+        except Exception as ex:
+            logger.warning("In-process booking simulation failed: %s", ex)
+            return {"status": "error", "message": str(ex)}
 
     elif func_name == "cancel_booking":
         return {"status": "cancelled", "booking_id": args.get("booking_id", f"BK-{bid}"),
@@ -831,14 +932,19 @@ def simulate_tool(func_name: str, args: dict, twin_id: str, org_id: str) -> dict
     elif func_name == "pay_dues":
         amt = args.get("amount", 0)
         return {"status": "success", "payment_id": f"PAY-{bid}", "amount": amt,
-                "message": f"Payment of Rs.{amt:,.0f} initiated. Confirmation in 2 minutes."}
+                "message": f"Payment of CAD ${amt:,.0f} initiated. Confirmation in 2 minutes."}
 
     elif func_name == "get_notices":
         return {"status": "success", "notices": [
-            {"title": "Water Supply Maintenance", "body": "Water supply interrupted Apr 14, 10AM-2PM.", "priority": "normal"},
-            {"title": "Holi Celebration", "body": "Holi event on Apr 15, 3PM at the clubhouse. All welcome!", "priority": "normal"},
-            {"title": "Parking Update", "body": "Visitor parking limited to 4 hours effective immediately.", "priority": "normal"},
+            {"title": "Water Shutoff Notice", "body": "Water shutoff May 14, 10 AM-2 PM for Tower 2 maintenance.", "priority": "urgent"},
+            {"title": "Spring Maintenance Walkthrough", "body": "Property manager inspection of common areas on May 16.", "priority": "normal"},
+            {"title": "Visitor Parking Reminder", "body": "Visitor parking limited to 24 hours; valid pass required.", "priority": "normal"},
         ]}
+
+    elif func_name == "lookup_bylaws":
+        from aria.ai.bylaws import lookup as bylaw_lookup
+        question = (args.get("question") or args.get("query") or "").strip()
+        return bylaw_lookup(org_id, question)
 
     elif func_name == "get_society_insights":
         return {"status": "success", "period": f"Last {args.get('days', 7)} days",
@@ -971,21 +1077,37 @@ def _summarize_tool_result(intent: str, result: dict) -> str:
 
     elif intent == "check_dues":
         dues = result.get("dues", [])
-        lines = ["Pending dues:"]
+        lines = ["Pending dues (CAD):"]
         for d in dues:
-            lines.append(f"  - {d.get('type', 'Item')}: Rs.{d.get('amount', 0):,} (due {d.get('due', d.get('due_date', ''))})")
-        lines.append(f"Total: Rs.{result.get('total', 0):,}")
+            lines.append(f"  - {d.get('type', 'Item')}: CAD ${d.get('amount', 0):,.2f} (due {d.get('due', d.get('due_date', ''))})")
+        lines.append(f"Total: CAD ${result.get('total', 0):,.2f}")
         return "\n".join(lines)
 
     elif intent == "pay_dues":
         if status == "need_amount":
             dues = result.get("dues", [])
-            lines = [f"Total pending: Rs.{result.get('total_due', 0):,}"]
+            lines = [f"Total pending: CAD ${result.get('total_due', 0):,.2f}"]
             for d in dues:
-                lines.append(f"  - {d.get('type', 'Item')}: Rs.{d.get('amount', 0):,}")
+                lines.append(f"  - {d.get('type', 'Item')}: CAD ${d.get('amount', 0):,}")
             lines.append("Ask the user how much they want to pay.")
             return "\n".join(lines)
-        return f"Payment of Rs.{result.get('amount', 0):,.0f} initiated. ID: {result.get('payment_id', '')}"
+        return f"Payment of CAD ${result.get('amount', 0):,.0f} initiated. ID: {result.get('payment_id', '')}"
+
+    elif intent == "lookup_bylaws":
+        if result.get("status") != "found":
+            return result.get(
+                "summary",
+                "I don't see a specific bylaw covering this. Please check with your property manager.",
+            )
+        results = result.get("results", []) or []
+        lines = [f"Found {len(results)} relevant bylaw section(s):"]
+        for r in results[:3]:
+            snippet = (r.get("text", "") or "").strip().split("\n")[0]
+            if len(snippet) > 220:
+                snippet = snippet[:217] + "..."
+            lines.append(f"  - §{r.get('section')} {r.get('title')}: {snippet}")
+        lines.append("(See cards below for full text and citations.)")
+        return "\n".join(lines)
 
     elif intent == "get_notices":
         notices = result.get("notices", [])
@@ -1039,7 +1161,7 @@ def _structured_prefix(intent: str | None, tool_result: dict | None) -> str:
     rich cards. For non-JS clients the human-readable caption from the
     LLM still follows after a blank line, so the reply remains useful.
     """
-    if not tool_result or tool_result.get("status") not in ("success", "booked"):
+    if not tool_result or tool_result.get("status") not in ("success", "booked", "found"):
         return ""
     if intent in ("list_society_amenities", "find_amenities_by_type"):
         items = tool_result.get("items") or []
@@ -1049,14 +1171,20 @@ def _structured_prefix(intent: str | None, tool_result: dict | None) -> str:
         if tool_result.get("type"):
             payload["type"] = tool_result["type"]
         return f"AMENITIES_LIST::{json.dumps(payload, ensure_ascii=False)}"
-    if intent == "book_amenity" and tool_result.get("status") == "booked":
+    if intent == "lookup_bylaws" and tool_result.get("status") == "found":
+        payload = {
+            "question": tool_result.get("question", ""),
+            "results": tool_result.get("results", []),
+        }
+        return f"BYLAW_RESULT::{json.dumps(payload, ensure_ascii=False)}"
+    if intent == "book_amenity" and tool_result.get("status") in ("booked", "success"):
         payload = {
             "booking_id": tool_result.get("booking_id", ""),
             "amenity_id": tool_result.get("amenity_id", "") or "",
             "amenity": tool_result.get("amenity", ""),
             "location": tool_result.get("location", ""),
             "date": tool_result.get("date", ""),
-            "slot": tool_result.get("slot", ""),
+            "slot": tool_result.get("slot", "") or tool_result.get("time_slot", ""),
             "remaining_capacity": tool_result.get("remaining_capacity"),
         }
         return f"BOOKING_RESULT::{json.dumps(payload, ensure_ascii=False)}"
@@ -1159,7 +1287,31 @@ async def chat_endpoint(request: Request, req: ChatRequest, authorization: str |
 
     conv_memory.add_turn(conv_id, req.twin_id, "user", sanitized)
 
-    intent, intent_confidence, intent_method = detect_intent_hybrid(sanitized, req.role, conv_id)
+    # Multi-turn: if a previous turn parked a pending action (disambiguation,
+    # yes/no, slot-fill), try to resume it FIRST. This is what fixes the
+    # "ARIA asked, user said yes, ARIA forgot" class of bugs.
+    resumed = try_resume(conv_id, sanitized)
+    intent: str | None = None
+    intent_confidence: float = 0.0
+    intent_method: str = ""
+    args_override: dict | None = None
+
+    if resumed and resumed.resumed_intent:
+        intent = resumed.resumed_intent
+        intent_confidence = 0.97
+        intent_method = f"resume:{resumed.reason}"
+        args_override = resumed.resumed_args
+        logger.info("Resumed pending action: conv=%s intent=%s reason=%s",
+                    conv_id[:8], intent, resumed.reason)
+    elif resumed and resumed.cleared:
+        # User said no/cancel — drop the pending and re-classify the
+        # current message normally (no resume).
+        logger.info("Pending action cleared by user: conv=%s reason=%s",
+                    conv_id[:8], resumed.reason)
+        intent, intent_confidence, intent_method = detect_intent_hybrid(sanitized, req.role, conv_id)
+    else:
+        intent, intent_confidence, intent_method = detect_intent_hybrid(sanitized, req.role, conv_id)
+
     signals["intent_method"] = intent_method
     signals["intent_confidence"] = round(intent_confidence, 3)
 
@@ -1169,7 +1321,7 @@ async def chat_endpoint(request: Request, req: ChatRequest, authorization: str |
     used_fallback = False
 
     if intent:
-        args = extract_args(intent, sanitized, conv_id)
+        args = args_override if args_override is not None else extract_args(intent, sanitized, conv_id)
         logger.info("intent=%s confidence=%.2f method=%s args=%s",
                     intent, intent_confidence, intent_method, json.dumps(args))
         tool_result = await call_t2t_tool(intent, args, req.twin_id, req.org_id, conv_id)
@@ -1178,6 +1330,33 @@ async def chat_endpoint(request: Request, req: ChatRequest, authorization: str |
         action_taken = ACTION_MAP.get(intent, "")
         user_profile.record_action(intent, args)
         conv_memory.persist_user(req.twin_id)
+
+        # Park disambiguation state — when book_amenity returns options,
+        # remember them so the next message ("Tower 1") completes the booking.
+        if (
+            intent == "book_amenity"
+            and tool_result.get("status") == "needs_disambiguation"
+            and tool_result.get("options")
+        ):
+            park_disambiguation(
+                conv_id=conv_id,
+                intent="book_amenity",
+                args=dict(args),
+                options=tool_result["options"],
+                prompt=tool_result.get("error", "Multiple matches — please pick one"),
+            )
+        # Park amount-needed state — when pay_dues fires without an amount,
+        # remember so a follow-up "$480" completes the payment.
+        elif (
+            intent == "pay_dues"
+            and tool_result.get("status") == "need_amount"
+        ):
+            park_amount(
+                conv_id=conv_id,
+                intent="pay_dues",
+                args=dict(args),
+                prompt="How much would you like to pay?",
+            )
 
         summary = _summarize_tool_result(intent, tool_result)
         tool_context = (
@@ -1220,7 +1399,7 @@ async def chat_endpoint(request: Request, req: ChatRequest, authorization: str |
         if intent and tool_result:
             reply = safe_format(intent, tool_result) or _summarize_tool_result(intent, tool_result)
         else:
-            reply = "I'm here to help! You can ask me to book amenities, raise tickets, check events, pay dues, and more."
+            reply = "I'm here to help! You can ask me to book amenities, raise maintenance tickets, check building events, view your strata fees, and more."
 
     # Strip any STRUCTURED_PAYLOAD line the LLM may have echoed from the
     # tool context, then prepend the canonical structured prefix ourselves

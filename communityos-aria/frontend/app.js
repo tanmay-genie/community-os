@@ -8,7 +8,6 @@
 const state = {
   role: 'member',
   conversationId: '',
-  lang: localStorage.getItem('aria-lang') || 'en',
   theme: localStorage.getItem('aria-theme') || 'dark',
   messages: JSON.parse(localStorage.getItem('aria-messages') || '[]'),
   pendingImage: null,
@@ -77,37 +76,23 @@ async function authFetch(url, options = {}, baseUrl, twinId, apiKey, orgId) {
   return resp;
 }
 
-// ── i18n ──────────────────────────────────────────────────────────────
-const I18N = {
-  en: {
-    theme: 'Theme', language: 'Language', mode: 'Mode', member: 'Member', admin: 'Admin',
-    configuration: 'Configuration', checkHealth: 'Check Health', clearChat: 'Clear Chat',
-    exportReport: 'Export Report', quickActions: 'Quick Actions', societyInsights: 'Society Insights',
-    totalTickets: 'Total Tickets', pendingEscalations: 'Pending Escalations',
-    avgResponseTime: 'Avg Response Time', activeResidents: 'Active Residents',
-    ticketsThisWeek: 'Tickets This Week', escalationQueue: 'Escalation Queue',
-    selectAll: 'Select All', bulkApprove: 'Bulk Approve', bulkDeny: 'Bulk Deny',
-    contentModeration: 'Content Moderation', editAnnouncement: 'Edit Announcement',
-    cancel: 'Cancel', publish: 'Publish', chat: 'Chat', actions: 'Actions', settings: 'Settings',
-    askAria: 'Ask ARIA anything...', greeting: "Hi! I'm ARIA, your society assistant. Send me a message or click a quick action above to get started.",
-    cleared: 'Chat cleared. Send me a message or click a quick action to begin.',
-  },
-  hi: {
-    theme: 'थीम', language: 'भाषा', mode: 'मोड', member: 'सदस्य', admin: 'एडमिन',
-    configuration: 'कॉन्फ़िगरेशन', checkHealth: 'स्वास्थ्य जांच', clearChat: 'चैट साफ करें',
-    exportReport: 'रिपोर्ट डाउनलोड', quickActions: 'त्वरित कार्य', societyInsights: 'सोसायटी इनसाइट्स',
-    totalTickets: 'कुल टिकट', pendingEscalations: 'लंबित एस्केलेशन',
-    avgResponseTime: 'औसत प्रतिक्रिया समय', activeResidents: 'सक्रिय निवासी',
-    ticketsThisWeek: 'इस हफ्ते के टिकट', escalationQueue: 'एस्केलेशन कतार',
-    selectAll: 'सभी चुनें', bulkApprove: 'सभी स्वीकृत', bulkDeny: 'सभी अस्वीकृत',
-    contentModeration: 'कंटेंट मॉडरेशन', editAnnouncement: 'घोषणा संपादित करें',
-    cancel: 'रद्द', publish: 'प्रकाशित करें', chat: 'चैट', actions: 'कार्य', settings: 'सेटिंग्स',
-    askAria: 'ARIA से कुछ भी पूछें...', greeting: 'नमस्ते! मैं ARIA हूं, आपकी सोसायटी सहायक। कोई संदेश भेजें या ऊपर कोई एक्शन चुनें।',
-    cleared: 'चैट साफ हो गई। कोई संदेश भेजें या एक्शन चुनें।',
-  },
+// ── Strings (English-only) ────────────────────────────────────────────
+const STRINGS = {
+  theme: 'Theme', mode: 'Mode', member: 'Member', admin: 'Admin',
+  configuration: 'Configuration', checkHealth: 'Check Health', clearChat: 'Clear Chat',
+  exportReport: 'Export Report', quickActions: 'Quick Actions', societyInsights: 'Building Insights',
+  totalTickets: 'Total Tickets', pendingEscalations: 'Pending Escalations',
+  avgResponseTime: 'Avg Response Time', activeResidents: 'Active Residents',
+  ticketsThisWeek: 'Tickets This Week', escalationQueue: 'Escalation Queue',
+  selectAll: 'Select All', bulkApprove: 'Bulk Approve', bulkDeny: 'Bulk Deny',
+  contentModeration: 'Content Moderation', editAnnouncement: 'Edit Announcement',
+  cancel: 'Cancel', publish: 'Publish', chat: 'Chat', actions: 'Actions', settings: 'Settings',
+  askAria: 'Ask ARIA anything...',
+  greeting: "Hi! I'm ARIA, your building assistant. Try asking \"what amenities are here?\" or \"show me all the gyms\" — or tap any quick action above.",
+  cleared: 'Chat cleared. Send me a message or click a quick action to begin.',
 };
 
-function t(key) { return I18N[state.lang]?.[key] || I18N.en[key] || key; }
+function t(key) { return STRINGS[key] || key; }
 
 function applyI18n() {
   document.querySelectorAll('[data-i18n]').forEach(el => {
@@ -135,7 +120,6 @@ const btnHealth      = $('#btn-health');
 const btnClear       = $('#btn-clear');
 const btnExport      = $('#btn-export');
 const themeToggle    = $('#theme-toggle');
-const langToggle     = $('#lang-toggle');
 const btnVoice       = $('#btn-voice');
 const btnAttach      = $('#btn-attach');
 const fileInput      = $('#file-input');
@@ -172,16 +156,19 @@ function playNotificationSound() {
 // Anything that doesn't match falls through to the normal markdown path.
 function extractStructured(text) {
   if (!text) return { kind: null, data: null, caption: text || '' };
-  const PREFIXES = ['AMENITIES_LIST::', 'BOOKING_RESULT::'];
-  for (const p of PREFIXES) {
+  const PREFIX_KIND = {
+    'AMENITIES_LIST::': 'amenities',
+    'BOOKING_RESULT::': 'booking',
+    'BYLAW_RESULT::':   'bylaw',
+  };
+  for (const p of Object.keys(PREFIX_KIND)) {
     if (text.startsWith(p)) {
-      // The JSON is on the same line, ending at the first newline OR end of string.
       const newlineIdx = text.indexOf('\n');
       const jsonStr = newlineIdx === -1 ? text.slice(p.length) : text.slice(p.length, newlineIdx);
       const caption = newlineIdx === -1 ? '' : text.slice(newlineIdx + 1).trim();
       try {
         const data = JSON.parse(jsonStr);
-        return { kind: p === 'AMENITIES_LIST::' ? 'amenities' : 'booking', data, caption };
+        return { kind: PREFIX_KIND[p], data, caption };
       } catch (err) {
         console.warn('Failed to parse structured payload:', err, jsonStr.slice(0, 120));
         return { kind: null, data: null, caption: text };
@@ -459,14 +446,19 @@ const MEMBER_ACTIONS = [
   { id: 'book-blocka',  icon: '\u{1F3CB}', iconClass: 'icon-purple', title: 'Block A Gym',    desc: 'Direct slot booking',        message: 'Book Block A gym tomorrow at 8am' },
   { id: 'book-club',    icon: '\u{1F3E0}', iconClass: 'icon-purple', title: 'Book Clubhouse', desc: 'Reserve the clubhouse',      message: 'I want to book the clubhouse for Saturday evening' },
   { id: 'spa-info',     icon: '\u{1F4AB}', iconClass: 'icon-yellow', title: 'Spa Details',    desc: 'Hours, features, location',  message: 'Tell me about the wellness spa' },
+  // Bylaw lookups — citation-grounded answers from condo rules
+  { id: 'bylaw-pets',    icon: '\u{1F415}', iconClass: 'icon-purple', title: 'Pet Rules',       desc: 'Bylaw lookup',               message: 'are pets allowed in the building?' },
+  { id: 'bylaw-airbnb',  icon: '\u{1F3D8}', iconClass: 'icon-cyan',   title: 'Airbnb Policy',   desc: 'Short-term rental rule',     message: 'can I list my unit on Airbnb?' },
+  { id: 'bylaw-quiet',   icon: '\u{1F507}', iconClass: 'icon-blue',   title: 'Quiet Hours',     desc: 'Noise bylaw',                message: 'what time do quiet hours start?' },
+  { id: 'bylaw-floor',   icon: '\u{1FA9C}', iconClass: 'icon-green',  title: 'Hardwood Rule',   desc: 'Flooring bylaw',             message: 'can I install hardwood floors?' },
   // Lifecycle (tickets, dues, events, notices, RSVP).
   { id: 'raise-ticket', icon: '\u{1F527}', iconClass: 'icon-red',    title: 'Raise Ticket',   desc: 'Report maintenance issue',   message: 'AC not working in my flat' },
   { id: 'urgent-ticket',icon: '\u{1F6A8}', iconClass: 'icon-orange', title: 'Urgent Issue',   desc: 'Report an emergency',        message: 'There is a water leakage flooding in my bathroom, urgent!' },
   { id: 'check-events', icon: '\u{1F389}', iconClass: 'icon-pink',   title: 'Events Today',   desc: "What's happening?",          message: 'What events are happening today?' },
   { id: 'check-dues',   icon: '\u{1F4B0}', iconClass: 'icon-yellow', title: 'Check Dues',     desc: 'View pending payments',      message: 'Do I have any pending dues?' },
-  { id: 'pay-rent',     icon: '\u{1F4B3}', iconClass: 'icon-green',  title: 'Pay Rent',       desc: 'Initiate rent payment',      message: 'Pay my rent of \u20B915000' },
+  { id: 'pay-rent',     icon: '\u{1F4B3}', iconClass: 'icon-green',  title: 'Pay Strata Fee', desc: 'Initiate fee payment',       message: 'Pay my strata fee of $480' },
   { id: 'notices',      icon: '\u{1F4E2}', iconClass: 'icon-purple', title: 'Notices',        desc: 'Latest announcements',       message: 'Any new notices from the society?' },
-  { id: 'rsvp',         icon: '\u{270B}',  iconClass: 'icon-cyan',   title: 'RSVP Event',     desc: 'Join an upcoming event',     message: 'Sign me up for the Holi party' },
+  { id: 'rsvp',         icon: '\u{270B}',  iconClass: 'icon-cyan',   title: 'RSVP Event',     desc: 'Join an upcoming event',     message: 'Sign me up for the rooftop social' },
 ];
 
 const ADMIN_ACTIONS = [
@@ -482,17 +474,17 @@ const ADMIN_ACTIONS = [
 
 // ── Escalation Data (simulated) ──────────────────────────────────────
 const ESCALATION_DATA = [
-  { id: 'ESC-001', title: 'Pool maintenance budget approval', desc: 'Contractor requesting \u20B945,000 for pump replacement', sla: '2h 15m', slaClass: 'sla-ok' },
-  { id: 'ESC-002', title: 'Parking slot reassignment B-Wing', desc: 'Resident B-404 requesting swap with B-201', sla: '45m', slaClass: 'sla-warn' },
-  { id: 'ESC-003', title: 'Security camera installation', desc: 'New cameras for basement level 2 — vendor quote pending', sla: '15m', slaClass: 'sla-critical' },
-  { id: 'ESC-004', title: 'Society event budget — Holi', desc: 'Committee requesting \u20B91,20,000 for Holi celebration', sla: '5h 30m', slaClass: 'sla-ok' },
+  { id: 'ESC-001', title: 'Pool pump replacement approval', desc: 'Contractor requesting CAD $4,500 for pump replacement', sla: '2h 15m', slaClass: 'sla-ok' },
+  { id: 'ESC-002', title: 'Parking spot reassignment', desc: 'Resident in Tower 2 #404 requesting swap with #201', sla: '45m', slaClass: 'sla-warn' },
+  { id: 'ESC-003', title: 'Security camera installation', desc: 'New cameras for parking Level P2 — vendor quote pending', sla: '15m', slaClass: 'sla-critical' },
+  { id: 'ESC-004', title: 'Annual rooftop social budget', desc: 'Social committee requesting CAD $2,000 for spring event', sla: '5h 30m', slaClass: 'sla-ok' },
 ];
 
 // ── Moderation Data (simulated) ──────────────────────────────────────
 const MODERATION_DATA = [
-  { user: 'Resident A-203', content: '"The security guard is sleeping during night shift again!"', severity: 'medium', reason: 'Accusation without evidence' },
-  { user: 'Resident C-101', content: '"This society management is completely corrupt"', severity: 'high', reason: 'Defamatory language against committee' },
-  { user: 'Resident B-505', content: '"Don\'t park in my spot or face consequences"', severity: 'low', reason: 'Mildly threatening tone' },
+  { user: 'Resident T1-203', content: '"The concierge was sleeping again during the night shift!"', severity: 'medium', reason: 'Accusation without evidence' },
+  { user: 'Resident T2-101', content: '"This strata council is completely incompetent"', severity: 'high', reason: 'Disparaging language against the board' },
+  { user: 'Resident T1-505', content: '"Don\'t park in my spot or face consequences"', severity: 'low', reason: 'Mildly threatening tone' },
 ];
 
 // ── Render Quick Actions ─────────────────────────────────────────────
@@ -651,18 +643,6 @@ themeToggle.addEventListener('click', () => {
   applyTheme(state.theme === 'dark' ? 'light' : 'dark');
 });
 
-// ── Language Toggle ──────────────────────────────────────────────────
-function applyLang(lang) {
-  state.lang = lang;
-  localStorage.setItem('aria-lang', lang);
-  langToggle.textContent = lang === 'en' ? 'EN' : 'HI';
-  applyI18n();
-}
-
-langToggle.addEventListener('click', () => {
-  applyLang(state.lang === 'en' ? 'hi' : 'en');
-});
-
 // ── Sidebar Toggle ───────────────────────────────────────────────────
 sidebarToggle.addEventListener('click', () => sidebar.classList.toggle('open'));
 document.addEventListener('click', (e) => {
@@ -718,9 +698,6 @@ function populateMobileSettings() {
         <div class="toggle-card"><span class="toggle-label">${t('theme')}</span>
           <button class="theme-btn" id="m-theme">${state.theme === 'dark' ? '\u{1F319}' : '\u{2600}'}</button>
         </div>
-        <div class="toggle-card"><span class="toggle-label">${t('language')}</span>
-          <button class="lang-btn" id="m-lang">${state.lang === 'en' ? 'EN' : 'HI'}</button>
-        </div>
       </div>
     </div>
     <div class="config-section">
@@ -732,9 +709,7 @@ function populateMobileSettings() {
     </div>
   `;
   const mTheme = body.querySelector('#m-theme');
-  const mLang = body.querySelector('#m-lang');
   if (mTheme) mTheme.addEventListener('click', () => { applyTheme(state.theme === 'dark' ? 'light' : 'dark'); populateMobileSettings(); });
-  if (mLang) mLang.addEventListener('click', () => { applyLang(state.lang === 'en' ? 'hi' : 'en'); populateMobileSettings(); });
 }
 
 $('#mobile-settings-close')?.addEventListener('click', () => {
@@ -834,14 +809,13 @@ async function sendMessage(text) {
 
   try {
     const baseUrl = cfgUrl.value.replace(/\/+$/, '');
-    const langHint = state.lang === 'hi' ? ' (Reply in Hindi/Hinglish)' : '';
     const resp = await authFetch(
       `${baseUrl}/aria/chat`,
       {
         method: 'POST',
         body: JSON.stringify({
           role: state.role,
-          message: text + langHint,
+          message: text,
           conversation_id: state.conversationId,
         }),
       },
@@ -868,6 +842,8 @@ async function sendMessage(text) {
       appendStructuredMessage('amenities', parsed.data, parsed.caption || '', data.action_taken);
     } else if (parsed.kind === 'booking') {
       appendStructuredMessage('booking', parsed.data, parsed.caption || '', data.action_taken);
+    } else if (parsed.kind === 'bylaw') {
+      appendStructuredMessage('bylaw', parsed.data, parsed.caption || '', data.action_taken);
     } else {
       appendMessageTypewriter('system', data.reply, data.action_taken);
     }
@@ -945,6 +921,26 @@ function appendRawHTML(role, innerHTML, actionTaken) {
   return div;
 }
 
+function bylawCardsHTML(data) {
+  const results = (data && data.results) || [];
+  const question = (data && data.question) || '';
+  if (!results.length) {
+    return `<p class="amenity-empty">No matching bylaw section found.</p>`;
+  }
+  const cards = results.map(r => `
+    <div class="bylaw-card">
+      <div class="bylaw-card-head">
+        <span class="bylaw-section">§${escapeHtml(r.section || '')}</span>
+        <h4 class="bylaw-title">${escapeHtml(r.title || '')}</h4>
+      </div>
+      <p class="bylaw-text">${escapeHtml(r.text || '')}</p>
+      <div class="bylaw-citation">${escapeHtml(r.citation || '')}</div>
+    </div>
+  `).join('');
+  const heading = question ? `<p class="bylaw-question"><strong>Q:</strong> ${escapeHtml(question)}</p>` : '';
+  return `${heading}<div class="bylaw-grid">${cards}</div>`;
+}
+
 function appendStructuredMessage(kind, data, caption, actionTaken) {
   let body = '';
   if (kind === 'amenities') {
@@ -954,6 +950,9 @@ function appendStructuredMessage(kind, data, caption, actionTaken) {
   } else if (kind === 'booking') {
     const captionHTML = caption ? `<p class="amenity-caption">${escapeHtml(caption)}</p>` : '';
     body = `${captionHTML}${bookingConfirmationHTML(data || {})}`;
+  } else if (kind === 'bylaw') {
+    const captionHTML = caption ? `<p class="amenity-caption">${escapeHtml(caption)}</p>` : '';
+    body = `${captionHTML}${bylawCardsHTML(data || {})}`;
   } else {
     body = `<p>${escapeHtml(caption || '')}</p>`;
   }
@@ -968,9 +967,13 @@ function appendStructuredMessage(kind, data, caption, actionTaken) {
     if (infoBtn) infoBtn.addEventListener('click', () => showAmenityDetails(id, name));
   });
   // Persist as a raw text record (state.messages stays as-is for export).
+  let summaryText = '[Structured response]';
+  if (kind === 'amenities') summaryText = `[Amenity list — ${(data && data.items || []).length} items]`;
+  else if (kind === 'booking') summaryText = `[Booking confirmed]`;
+  else if (kind === 'bylaw') summaryText = `[Bylaw lookup — ${(data && data.results || []).length} sections]`;
   state.messages.push({
     role: 'system',
-    text: kind === 'amenities' ? `[Amenity list — ${(data && data.items || []).length} items]` : `[Booking confirmed]`,
+    text: summaryText,
     actionTaken,
     time: timeNow(),
   });
@@ -1163,7 +1166,7 @@ function showToast(msg, type = 'info') {
 
 // ── Init ─────────────────────────────────────────────────────────────
 applyTheme(state.theme);
-applyLang(state.lang);
+applyI18n();
 renderActions();
 renderAdminPanels();
 

@@ -1,4 +1,4 @@
-"""aria.society.seed_community — Seed events, dues, and notices for greenfield_society.
+"""aria.society.seed_community — Seed events, dues, and notices for maple_heights.
 
 Run: python -m aria.society.seed_community
 
@@ -21,68 +21,68 @@ from aria.society.models import (
 )
 
 
-ORG_ID = "greenfield_society"
+ORG_ID = "maple_heights"
 TWIN_ID = "tanmay_resident"
 
 EVENTS = [
     {
         "title": "Morning Yoga",
-        "description": "Daily morning yoga session in the garden area. All residents welcome.",
-        "event_date": date(2026, 4, 18),
+        "description": "Daily morning yoga session in the courtyard. All residents welcome.",
+        "event_date": date(2026, 5, 12),
         "event_time": time(6, 30),
-        "location": "Garden Area, Block A",
+        "location": "Courtyard, Tower 1",
         "capacity": 30,
         "rsvp_count": 12,
     },
     {
-        "title": "Kids Cricket",
-        "description": "Weekend cricket match for kids aged 8-14. Bring your own kit.",
-        "event_date": date(2026, 4, 19),
-        "event_time": time(16, 0),
-        "location": "Cricket Ground, East Wing",
-        "capacity": 22,
-        "rsvp_count": 8,
+        "title": "Rooftop Social",
+        "description": "Saturday evening rooftop social with light snacks. Meet your neighbours.",
+        "event_date": date(2026, 5, 14),
+        "event_time": time(18, 0),
+        "location": "Tower 4 Rooftop",
+        "capacity": 60,
+        "rsvp_count": 22,
     },
     {
-        "title": "Society AGM",
-        "description": "Annual General Meeting of Greenfield Society. Attendance mandatory for all flat owners.",
-        "event_date": date(2026, 4, 20),
+        "title": "Annual General Meeting",
+        "description": "Annual General Meeting for all unit owners. Attendance encouraged; proxies accepted.",
+        "event_date": date(2026, 5, 20),
         "event_time": time(18, 0),
-        "location": "Community Hall, Block A, 2nd Floor",
-        "capacity": 100,
-        "rsvp_count": 45,
+        "location": "Party Room, Tower 5 Lobby Level",
+        "capacity": 200,
+        "rsvp_count": 78,
     },
 ]
 
 DUES = [
     {
-        "type": "Maintenance",
-        "amount": 4500.0,
-        "due_date": date(2026, 4, 30),
+        "type": "Strata Fee",
+        "amount": 480.0,  # CAD
+        "due_date": date(2026, 5, 31),
         "status": "PENDING",
     },
     {
         "type": "Parking",
-        "amount": 1500.0,
-        "due_date": date(2026, 4, 30),
+        "amount": 75.0,  # CAD
+        "due_date": date(2026, 5, 31),
         "status": "PENDING",
     },
 ]
 
 NOTICES = [
     {
-        "title": "Water Supply Maintenance",
-        "body": "Water supply will be shut off on 19 Apr from 10 AM to 2 PM for tank cleaning and pipeline maintenance. Please store water accordingly.",
+        "title": "Water Shutoff Notice",
+        "body": "Water will be shut off on May 14 from 10 AM to 2 PM for routine maintenance of risers in Tower 2. Please store water in advance.",
         "priority": "urgent",
     },
     {
-        "title": "Holi Celebration",
-        "body": "Society Holi celebration on 20 Apr at the garden area. Organic colours will be provided. DJ from 3 PM to 6 PM. All families welcome!",
+        "title": "Spring Maintenance Walkthrough",
+        "body": "Property manager will conduct spring inspection of common areas on May 16. No unit access required.",
         "priority": "normal",
     },
     {
-        "title": "Parking Update",
-        "body": "Visitor parking in Block C basement is now reserved for residents on weekends. Visitors may use the open lot near the east gate.",
+        "title": "Visitor Parking Reminder",
+        "body": "Visitor parking is limited to 24 hours. Please use the visitor permit system. Vehicles without a valid permit may be towed at owner's expense.",
         "priority": "normal",
     },
 ]
@@ -133,7 +133,7 @@ async def seed() -> None:
                 **due_data,
             )
             db.add(due)
-            print(f"  + due: {due_data['type']} Rs {due_data['amount']}")
+            print(f"  + due: {due_data['type']} CAD ${due_data['amount']:.2f}")
 
         # Seed notices
         for notice_data in NOTICES:

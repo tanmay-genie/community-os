@@ -434,9 +434,9 @@ def register(mcp):
             if not dues:
                 return "You're all clear! No pending dues."
             total = sum(d.get("amount", 0) for d in dues)
-            lines = [f"Pending dues — total Rs.{total:,.0f}:"]
+            lines = [f"Pending dues — total CAD ${total:,.0f}:"]
             for d in dues:
-                lines.append(f"• {d['type']}: Rs.{d['amount']:,.0f} (due {d['due_date']})")
+                lines.append(f"• {d['type']}: CAD ${d['amount']:,.0f} (due {d['due_date']})")
             return "\n".join(lines)
         except Exception:
             return "Couldn't fetch your dues right now."
@@ -452,7 +452,7 @@ def register(mcp):
         """
         Initiate a payment for rent or maintenance fees.
         Call this when user says: 'Pay my rent', 'Pay maintenance',
-        'Clear my dues', 'Pay Rs.5000'.
+        'Clear my dues', 'Pay CAD $480'.
         payment_type: rent | maintenance | parking | other
         """
         try:
@@ -465,9 +465,9 @@ def register(mcp):
                 thread_id=str(uuid.uuid4()),
                 idempotency_key=str(uuid.uuid4()),
             )
-            await save_user_action(twin_id, f"paid {payment_type} Rs.{amount}")
+            await save_user_action(twin_id, f"paid {payment_type} CAD ${amount}")
             return (
-                f"Payment of Rs.{amount:,.0f} for {payment_type} initiated. "
+                f"Payment of CAD ${amount:,.0f} for {payment_type} initiated. "
                 f"You'll receive a confirmation shortly."
             )
         except Exception:

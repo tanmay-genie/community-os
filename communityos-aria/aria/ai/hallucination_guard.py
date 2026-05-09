@@ -88,7 +88,7 @@ def validate_reply(reply: str, tool_result: dict | None, intent: str | None) -> 
 
     for amt in mentioned_amounts:
         if not any(abs(amt - a) < 0.5 for a in allowed_amounts):
-            issues.append(f"Reply mentions amount Rs.{amt:,.0f} not in tool result")
+            issues.append(f"Reply mentions amount CAD ${amt:,.0f} not in tool result")
 
     return GuardResult(ok=not issues, issues=issues, corrected_reply=None)
 
@@ -98,14 +98,21 @@ def safe_format(intent: str, tool_result: dict) -> str:
     status = tool_result.get("status", "")
     msg = tool_result.get("message", "")
 
-    if intent == "book_amenity" and status == "booked":
+    if intent == "book_amenity" and status in ("booked", "success"):
+        slot = tool_result.get("slot") or tool_result.get("time_slot", "")
         return (f"Your {tool_result.get('amenity', 'amenity')} is booked for "
-                f"{tool_result.get('slot', '')} on {tool_result.get('date', 'today')}. "
+                f"{slot} on {tool_result.get('date', 'today')}. "
                 f"Booking ID: {tool_result.get('booking_id', '')[:8].upper()}.")
+    if intent == "create_ticket":
+        priority = tool_result.get("priority", "normal")
+        ticket_id = tool_result.get("ticket_id", "")
+        prefix = "Urgent ticket" if priority == "urgent" else "Ticket"
+        return (f"{prefix} raised. ID: {ticket_id[:8].upper() if ticket_id else 'pending'}. "
+                f"Priority: {priority}. Our team will follow up.")
     if intent == "check_dues":
         total = tool_result.get("total", 0)
-        return f"You have Rs.{total:,.0f} in pending dues." if total else "You have no pending dues."
+        return f"You have CAD ${total:,.2f} in pending dues." if total else "You have no pending dues."
     if intent == "pay_dues" and status == "success":
-        return f"Payment of Rs.{tool_result.get('amount', 0):,.0f} initiated."
+        return f"Payment of CAD ${tool_result.get('amount', 0):,.2f} initiated."
 
     return msg or "Action completed."

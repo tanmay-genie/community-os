@@ -698,6 +698,71 @@ body {
 .amenity-detail-card h4 { font-size: 1rem; }
 .amenity-detail-card p { font-size: .82rem; color: var(--text-secondary); margin: 0; }
 
+/* ── Bylaw Lookup Cards ────────────────────────────────────────────── */
+.bylaw-question {
+  font-size: .88rem;
+  color: var(--text-secondary);
+  margin: 4px 0 12px 0;
+  padding: 8px 12px;
+  background: rgba(167, 139, 250, .06);
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 0 6px 6px 0;
+}
+.bylaw-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0;
+}
+.bylaw-card {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-border);
+  border-left: 3px solid var(--accent-secondary);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  transition: border-color .2s;
+}
+.bylaw-card:hover {
+  border-color: rgba(56, 189, 248, .35);
+  border-left-color: var(--accent-secondary);
+}
+.bylaw-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.bylaw-section {
+  font-family: 'SF Mono', Consolas, monospace;
+  font-size: .82rem;
+  font-weight: 700;
+  color: var(--accent-secondary);
+  background: rgba(56, 189, 248, .1);
+  padding: 2px 8px;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+.bylaw-title {
+  font-size: .92rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+.bylaw-text {
+  font-size: .82rem;
+  color: var(--text-secondary);
+  line-height: 1.55;
+  margin: 0 0 8px 0;
+  white-space: pre-line;
+}
+.bylaw-citation {
+  font-size: .72rem;
+  color: var(--text-mute);
+  font-style: italic;
+  text-align: right;
+  letter-spacing: .02em;
+}
+
 /* ── Booking Confirmation Card ─────────────────────────────────────── */
 .booking-confirmation {
   display: flex;
