@@ -1,0 +1,105 @@
+# Render Blueprint — deploys T2T + ARIA backends + Postgres (free tier).
+#
+# How to use:
+#   1. Push this repo to GitHub.
+#   2. In Render dashboard → New → Blueprint → connect this repo.
+#   3. Render reads this file and provisions everything.
+#   4. After first deploy, set the secrets marked `sync: false` in the
+#      service dashboards: GOOGLE_API_KEY, T2T_ADMIN_SECRET, ALLOWED_ORIGINS.
+#
+# Notes:
+#   - Free web services spin down after 15 min idle (~30s cold start).
+#   - Free Postgres expires after 90 days; renew via dashboard.
+#   - Redis is intentionally NOT provisioned — ARIA + T2T fall back to
+#     fakeredis in-memory, which is fine for the demo.
+#   - HTTPS + custom domains come automatically with Render.
+
+services:
+  # ── T2T protocol layer ────────────────────────────────────────────────
+  - type: web
+    name: t2t-backend
+    runtime: python
+    plan: free
+    rootDir: t2t_backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: communityos-db
+          property: connectionString
+      - key: ADMIN_SECRET
+        generateValue: true
+      - key: LOG_LEVEL
+        value: INFO
+
+  # ── ARIA chat API ─────────────────────────────────────────────────────
+  - type: web
+    name: aria-backend
+    runtime: python
+    plan: free
+    rootDir: communityos-aria
+    buildCommand: pip install -e .
+    startCommand: python chat_api.py
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: communityos-db
+          property: connectionString
+      - key: T2T_BASE_URL
+        fromService:
+          name: t2t-backend
+          type: web
+          property: hostport          # injects the full https URL
+      - key: T2T_ADMIN_SECRET
+        fromService:
+          name: t2t-backend
+          type: web
+          envVarKey: ADMIN_SECRET
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_ISSUER
+        value: communityos-aria
+      - key: JWT_EXPIRY_HOURS
+        value: "24"
+      # Per-twin demo keys. Replace in production.
+      - key: TWIN_KEY_TANMAY
+        value: tanmay-key-001
+      - key: TWIN_KEY_OPS
+        value: ops-key-001
+      - key: TWIN_KEY_ARIA
+        value: aria-key-001
+      # Cost controls.
+      - key: ARIA_QUOTA_DAILY_USD
+        value: "5.00"
+      - key: ARIA_QUOTA_DAILY_CALLS
+        value: "2000"
+      - key: ARIA_QUOTA_BURST_CALLS_PER_MIN
+        value: "60"
+      - key: ARIA_PERSIST_METRICS
+        value: "true"
+      - key: ARIA_USE_EMBEDDINGS
+        value: "true"
+      - key: ARIA_USE_RAG
+        value: "true"
+      - key: ARIA_USE_PROMPT_CACHE
+        value: "true"
+      # SECRETS — set these manually in the Render dashboard.
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false                   # set to your Vercel URL after first deploy
+      - key: ARIA_BOOTSTRAP_DEMO_DATA
+        value: "true"                 # auto-seed Maple Heights demo on first run
+
+databases:
+  - name: communityos-db
+    plan: free
+    databaseName: communityos
+    user: communityos

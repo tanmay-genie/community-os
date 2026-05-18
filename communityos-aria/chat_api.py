@@ -16,6 +16,7 @@ Pipeline per message:
 import asyncio
 import json
 import logging
+import os
 import re
 import uuid
 from collections import defaultdict
@@ -127,6 +128,21 @@ async def _startup() -> None:
             await create_society_tables()
         except Exception as e:
             logger.warning("Society DB bootstrap failed: %s", e)
+
+    # One-shot demo bootstrap: when ARIA_BOOTSTRAP_DEMO_DATA=true (set by
+    # the Render blueprint), create schema + seed Maple Heights data so a
+    # fresh Render deploy is immediately demo-ready. Idempotent — the
+    # seed scripts skip rows that already exist.
+    if os.getenv("ARIA_BOOTSTRAP_DEMO_DATA", "").lower() == "true":
+        try:
+            await create_society_tables()
+            from aria.society.seed_amenities import seed as seed_amenities
+            from aria.society.seed_community import seed as seed_community
+            await seed_amenities()
+            await seed_community()
+            logger.info("Demo bootstrap: society tables + Maple Heights seed loaded")
+        except Exception as e:
+            logger.warning("Demo bootstrap failed: %s", e)
 
 
 @app.on_event("shutdown")
