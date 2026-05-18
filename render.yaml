@@ -25,6 +25,11 @@ services:
     startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     envVars:
+      # Pin Python — Render defaults to 3.14 which has no pre-built wheels
+      # for pydantic-core 2.18 / psycopg2-binary / PyNaCl; 3.11 has wheels
+      # for every dependency in requirements.txt.
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
@@ -46,6 +51,10 @@ services:
     startCommand: python chat_api.py
     healthCheckPath: /health
     envVars:
+      # See note in t2t-backend — Python 3.11 has pre-built wheels for
+      # every ARIA dependency (sentence-transformers, pgvector, pydantic).
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
