@@ -38,6 +38,8 @@ services:
           property: connectionString
       - key: ADMIN_SECRET
         generateValue: true
+      - key: APP_SECRET_KEY
+        generateValue: true
       - key: LOG_LEVEL
         value: INFO
 
