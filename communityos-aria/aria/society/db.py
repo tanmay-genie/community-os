@@ -28,6 +28,14 @@ def _resolve_url() -> str:
             "(society persistence will not survive process restart)"
         )
         return "sqlite+aiosqlite:///:memory:"
+    # Render and most managed Postgres providers hand out bare
+    # `postgresql://` (or even `postgres://`) URLs. SQLAlchemy's async
+    # engine needs the `+asyncpg` driver suffix or it raises
+    # "asyncio extension requires an async driver" on startup.
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
     return url
 
 

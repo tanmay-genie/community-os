@@ -7,8 +7,26 @@ from sqlalchemy.orm import DeclarativeBase
 
 from config import settings
 
+
+def _async_db_url(url: str) -> str:
+    """Normalise a Postgres URL for use with SQLAlchemy's async engine.
+
+    Render (and most managed Postgres providers) inject the bare
+    ``postgresql://`` (or even ``postgres://``) scheme. SQLAlchemy's
+    async engine needs the explicit ``+asyncpg`` driver suffix or it
+    falls back to sync ``psycopg2`` and raises InvalidRequestError.
+    """
+    if not url:
+        return url
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+    if url.startswith("postgresql://") and "+asyncpg" not in url:
+        url = "postgresql+asyncpg://" + url[len("postgresql://"):]
+    return url
+
+
 engine = create_async_engine(
-    settings.DATABASE_URL,
+    _async_db_url(settings.DATABASE_URL),
     echo=settings.APP_ENV == "development",
     pool_pre_ping=True,
     pool_size=settings.DB_POOL_SIZE,
