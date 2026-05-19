@@ -14,10 +14,10 @@ import type {
   AmenityListResponse,
   ChatRequest,
   ChatResponse,
-  DemoIdentity,
   LoginRequest,
   LoginResponse,
 } from './types';
+import type { DemoIdentity } from './auth';
 import { DEMO_IDENTITY, ensureToken, refreshToken } from './auth';
 
 export const API_BASE =
