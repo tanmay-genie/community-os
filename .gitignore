@@ -55,4 +55,8 @@ uv.lock
 # ── Local-only zips / archives ───────────
 t2t_backend.zip
 
+# ── Local-only docs (never push) ─────────
+FRONTEND_INTEGRATION.md
+BILAL_PRESENTATION.html
+
 

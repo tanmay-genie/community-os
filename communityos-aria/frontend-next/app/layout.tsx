@@ -1,30 +1,28 @@
-import type { Metadata, Viewport } from 'next';
-import './globals.css';
+import type { Metadata, Viewport } from "next";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'ARIA — CommunityOS AI Concierge',
-  description:
-    'Next.js reference frontend for ARIA. Demonstrates auth, chat, and the structured-card protocol (amenities, bookings, bylaw citations) against the ARIA backend.',
+  title: "ARIA — CommunityOS AI Assistant",
+  description: "ARIA Dashboard — Voice + Chat AI for housing societies",
 };
 
 export const viewport: Viewport = {
-  width: 'device-width',
-  initialScale: 1,
-  themeColor: '#0a0e1a',
+  width: "device-width",
+  initialScale: 1.0,
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark">
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

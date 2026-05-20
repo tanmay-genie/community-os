@@ -1,17 +1,16 @@
 {
-  "name": "communityos-aria-frontend-next",
+  "name": "communityos-aria-frontend",
   "version": "0.1.0",
   "private": true,
-  "description": "Next.js reference frontend for ARIA — shows how to integrate the chat + structured-card protocol with the ARIA backend.",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 3000",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3000",
     "lint": "next lint",
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "14.2.5",
+    "next": "14.2.15",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },
@@ -19,11 +18,8 @@
     "@types/node": "20.14.10",
     "@types/react": "18.3.3",
     "@types/react-dom": "18.3.0",
-    "autoprefixer": "10.4.19",
-    "postcss": "8.4.39",
-    "tailwindcss": "3.4.6",
-    "typescript": "5.5.3",
     "eslint": "8.57.0",
-    "eslint-config-next": "14.2.5"
+    "eslint-config-next": "14.2.15",
+    "typescript": "5.5.3"
   }
 }
